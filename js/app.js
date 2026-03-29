@@ -889,6 +889,7 @@ function gatherRentalData() {
     vacancy: num('r-vacancy'),
     rentIncrease: num('r-rent-increase'),
     appreciation: num('r-appreciation'),
+    notes: document.getElementById('r-notes').value,
     reno
   };
 }
@@ -914,6 +915,7 @@ function gatherFlipData() {
     holdOther: num('f-hold-other'),
     salePrice: num('f-sale-price'),
     saleCosts: num('f-sale-costs'),
+    notes: document.getElementById('f-notes').value,
     reno
   };
 }
@@ -939,6 +941,7 @@ function loadRentalData(data) {
   document.getElementById('r-vacancy').value = data.vacancy || '';
   document.getElementById('r-rent-increase').value = data.rentIncrease ?? 2;
   document.getElementById('r-appreciation').value = data.appreciation ?? 2;
+  document.getElementById('r-notes').value = data.notes || '';
 
   document.getElementById('r-units-list').innerHTML = '';
   (data.units || []).forEach(u => addRentalUnit(u.name, u.rent));
@@ -960,6 +963,7 @@ function loadFlipData(data) {
   document.getElementById('f-hold-other').value = data.holdOther || '';
   document.getElementById('f-sale-price').value = data.salePrice || '';
   document.getElementById('f-sale-costs').value = data.saleCosts || '';
+  document.getElementById('f-notes').value = data.notes || '';
 
   document.getElementById('f-reno-list').innerHTML = '';
   (data.reno || []).forEach(r => addFlipReno(r.desc, r.cost));
@@ -995,6 +999,7 @@ document.getElementById('r-reset').addEventListener('click', () => {
   if (!confirm('Nulstil alle felter?')) return;
   document.querySelectorAll('#rental input[type="number"], #rental input[type="text"]').forEach(el => el.value = '');
   document.getElementById('r-interest-only').checked = false;
+  document.getElementById('r-notes').value = '';
   document.getElementById('r-units-list').innerHTML = '';
   document.getElementById('r-reno-list').innerHTML = '';
   document.getElementById('r-property-image').innerHTML = '';
@@ -1006,6 +1011,7 @@ document.getElementById('r-reset').addEventListener('click', () => {
 document.getElementById('f-reset').addEventListener('click', () => {
   if (!confirm('Nulstil alle felter?')) return;
   document.querySelectorAll('#flip input[type="number"], #flip input[type="text"]').forEach(el => el.value = '');
+  document.getElementById('f-notes').value = '';
   document.getElementById('f-reno-list').innerHTML = '';
   document.getElementById('f-property-image').innerHTML = '';
   localStorage.removeItem('gobolig_draft_flip');
@@ -1017,11 +1023,15 @@ document.getElementById('f-reset').addEventListener('click', () => {
 function renderSavedList() {
   const props = getProperties();
   const container = document.getElementById('saved-list');
+  const compareBtn = document.getElementById('btn-compare');
 
   if (props.length === 0) {
     container.innerHTML = '<p class="placeholder-text">Ingen gemte ejendomme endnu.</p>';
+    compareBtn.style.display = 'none';
     return;
   }
+
+  compareBtn.style.display = props.length >= 2 ? '' : 'none';
 
   let html = '';
   props.forEach(p => {
@@ -1042,12 +1052,18 @@ function renderSavedList() {
                <span>Salgspris: <strong>${fmt(p.salePrice)} kr.</strong></span>`;
     }
 
+    const notesSnippet = p.notes ? `<div class="saved-meta" style="margin-top:0.25rem;font-style:italic">${p.notes.substring(0, 80)}${p.notes.length > 80 ? '...' : ''}</div>` : '';
+
     html += `
       <div class="saved-card">
+        <div class="saved-card-select">
+          <input type="checkbox" class="compare-check" data-id="${p.id}" title="Vælg til sammenligning">
+        </div>
         <div class="saved-card-info">
           <h3>${p.name || 'Uden navn'}${typeBadge}</h3>
           <div class="saved-meta">Gemt ${date}</div>
           <div class="saved-stats">${stats}</div>
+          ${notesSnippet}
         </div>
         <div class="saved-card-actions">
           <button class="btn-load" onclick="loadProperty(${p.id})">Indlæs</button>
@@ -1196,6 +1212,14 @@ function applyRentalData(d) {
   if (d.size) document.getElementById('r-size').value = d.size;
   if (d.rooms) document.getElementById('r-rooms').value = d.rooms;
   if (d.yearBuilt) document.getElementById('r-year-built').value = d.yearBuilt;
+  // Estimate expenses from monthlyExpense (ejerudgift)
+  if (d.monthlyExpense && d.monthlyExpense > 0) {
+    const annual = d.monthlyExpense * 12;
+    // Rough split: ~40% tax, ~25% insurance, ~20% maintenance, ~15% other
+    if (!num('r-tax')) document.getElementById('r-tax').value = Math.round(annual * 0.40);
+    if (!num('r-insurance')) document.getElementById('r-insurance').value = Math.round(annual * 0.25);
+    if (!num('r-maintenance')) document.getElementById('r-maintenance').value = Math.round(annual * 0.20);
+  }
   calcRental();
 }
 
@@ -1203,6 +1227,11 @@ function applyRentalData(d) {
 function applyFlipData(d) {
   if (d.address) document.getElementById('f-name').value = d.address;
   if (d.price) document.getElementById('f-purchase').value = d.price;
+  // Estimate holding costs from monthlyExpense
+  if (d.monthlyExpense && d.monthlyExpense > 0) {
+    if (!num('f-hold-tax')) document.getElementById('f-hold-tax').value = Math.round(d.monthlyExpense * 0.40);
+    if (!num('f-hold-insurance')) document.getElementById('f-hold-insurance').value = Math.round(d.monthlyExpense * 0.25);
+  }
   calcFlip();
 }
 
@@ -1226,6 +1255,201 @@ document.getElementById('f-fetch').addEventListener('click', () => {
     if (e.key === 'Enter') document.getElementById('f-fetch').click();
   });
 });
+
+// ── Property Comparison ──────────────────────────────────────────────
+document.getElementById('btn-compare').addEventListener('click', () => {
+  const checked = document.querySelectorAll('.compare-check:checked');
+  const ids = Array.from(checked).map(c => parseInt(c.dataset.id));
+
+  if (ids.length < 2) {
+    showToast('Vælg mindst 2 ejendomme at sammenligne.', 'error');
+    return;
+  }
+
+  const props = getProperties();
+  const selected = ids.map(id => props.find(p => p.id === id)).filter(Boolean);
+
+  renderComparison(selected);
+});
+
+function computeRentalMetrics(p) {
+  const loanAmt = p.purchase * ((p.loanPct || 80) / 100);
+  const monthlyRent = (p.units || []).reduce((s, u) => s + u.rent, 0);
+  const annualGross = monthlyRent * 12;
+  const annualNet = annualGross * (1 - (p.vacancy || 0) / 100);
+  const opex = (p.tax || 0) + (p.insurance || 0) + (p.maintenance || 0) + (p.admin || 0) + ((p.utilities || 0) * 12) + (p.other || 0);
+  const pmt = calcMonthlyPayment(loanAmt, p.rate || 4, p.term || 30, p.interestOnly) * 12;
+  const totalReno = (p.reno || []).reduce((s, r) => s + r.cost, 0);
+  const totalInv = p.purchase + (p.closing || 0) + totalReno;
+  const equity = totalInv - loanAmt;
+  const noi = annualNet - opex;
+  const cashFlow = noi - pmt;
+
+  return {
+    name: p.name,
+    type: 'Udlejning',
+    purchase: p.purchase,
+    monthlyRent,
+    annualNet,
+    opex,
+    annualPayment: pmt,
+    cashFlowYear: cashFlow,
+    cashFlowMonth: cashFlow / 12,
+    totalInvestment: totalInv,
+    equity,
+    grossYield: p.purchase > 0 ? (annualGross / p.purchase) * 100 : 0,
+    netYield: p.purchase > 0 ? (noi / p.purchase) * 100 : 0,
+    capRate: p.purchase > 0 ? (noi / p.purchase) * 100 : 0,
+    cashOnCash: equity > 0 ? (cashFlow / equity) * 100 : 0,
+    dscr: pmt > 0 ? noi / pmt : 0,
+    pricePerSqm: (p.purchase > 0 && p.size > 0) ? p.purchase / p.size : 0,
+  };
+}
+
+function computeFlipMetrics(p) {
+  const totalReno = (p.reno || []).reduce((s, r) => s + r.cost, 0);
+  const holdCost = ((p.holdCost || 0) + (p.holdTax || 0) + (p.holdInsurance || 0) + (p.holdOther || 0)) * (p.holdMonths || 0);
+  const totalInv = p.purchase + (p.closing || 0) + totalReno + holdCost;
+  const netSale = (p.salePrice || 0) - (p.saleCosts || 0);
+  const profit = netSale - totalInv;
+  const roi = totalInv > 0 ? (profit / totalInv) * 100 : 0;
+
+  return {
+    name: p.name,
+    type: 'Flip',
+    purchase: p.purchase,
+    totalReno,
+    holdCost,
+    totalInvestment: totalInv,
+    salePrice: p.salePrice || 0,
+    profit,
+    roi,
+    annualizedRoi: (p.holdMonths > 0 && totalInv > 0) ? (Math.pow(1 + profit / totalInv, 12 / p.holdMonths) - 1) * 100 : 0,
+  };
+}
+
+function renderComparison(selected) {
+  const container = document.getElementById('compare-container');
+
+  // Compute metrics for all
+  const metrics = selected.map(p => p.type === 'rental' ? computeRentalMetrics(p) : computeFlipMetrics(p));
+  const allRental = metrics.every(m => m.type === 'Udlejning');
+  const allFlip = metrics.every(m => m.type === 'Flip');
+
+  let html = '<div class="compare-card"><h3>Sammenligning</h3><div class="compare-scroll"><table class="compare-table">';
+
+  // Header
+  html += '<thead><tr><th></th>';
+  metrics.forEach(m => { html += `<th>${m.name}</th>`; });
+  html += '</tr></thead><tbody>';
+
+  // Helper to add row with best-highlighting
+  function addRow(label, values, opts = {}) {
+    const { format = 'kr', higherBetter = true, decimals = 0 } = opts;
+    const nums = values.map(v => typeof v === 'number' ? v : 0);
+    const best = higherBetter ? Math.max(...nums) : Math.min(...nums.filter(n => n > 0));
+
+    html += `<tr><th>${label}</th>`;
+    values.forEach((v, i) => {
+      let formatted;
+      if (format === 'kr') formatted = fmt(v) + ' kr.';
+      else if (format === 'pct') formatted = v.toFixed(decimals || 1) + '%';
+      else if (format === 'num') formatted = v.toFixed(decimals);
+      else formatted = String(v);
+
+      const isBest = nums[i] === best && nums.filter(n => n === best).length < nums.length;
+      html += `<td class="${isBest ? 'best' : ''}">${formatted}</td>`;
+    });
+    html += '</tr>';
+  }
+
+  // Common rows
+  addRow('Købspris', metrics.map(m => m.purchase), { higherBetter: false });
+  addRow('Samlet investering', metrics.map(m => m.totalInvestment), { higherBetter: false });
+
+  if (allRental) {
+    addRow('Mdl. husleje', metrics.map(m => m.monthlyRent));
+    addRow('Mdl. cash flow', metrics.map(m => m.cashFlowMonth));
+    addRow('Årligt cash flow', metrics.map(m => m.cashFlowYear));
+    addRow('Bruttoafkast', metrics.map(m => m.grossYield), { format: 'pct' });
+    addRow('Cap Rate', metrics.map(m => m.capRate), { format: 'pct' });
+    addRow('Cash-on-cash', metrics.map(m => m.cashOnCash), { format: 'pct' });
+    addRow('DSCR', metrics.map(m => m.dscr), { format: 'num', decimals: 2 });
+    addRow('Pris/m²', metrics.map(m => m.pricePerSqm), { higherBetter: false });
+  } else if (allFlip) {
+    addRow('Renovering', metrics.map(m => m.totalReno), { higherBetter: false });
+    addRow('Salgspris', metrics.map(m => m.salePrice));
+    addRow('Fortjeneste', metrics.map(m => m.profit));
+    addRow('ROI', metrics.map(m => m.roi), { format: 'pct' });
+    addRow('Annualiseret ROI', metrics.map(m => m.annualizedRoi), { format: 'pct' });
+  } else {
+    // Mixed - show what we can
+    addRow('Type', metrics.map(m => m.type), { format: 'text' });
+    if (metrics.some(m => m.cashFlowMonth !== undefined)) addRow('Mdl. cash flow', metrics.map(m => m.cashFlowMonth || 0));
+    if (metrics.some(m => m.profit !== undefined)) addRow('Fortjeneste', metrics.map(m => m.profit || 0));
+  }
+
+  html += '</tbody></table></div></div>';
+  container.innerHTML = html;
+  container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ── PDF Export ───────────────────────────────────────────────────────
+function exportPDF(prefix) {
+  const resultsEl = document.getElementById(prefix + '-results');
+  if (!resultsEl || resultsEl.querySelector('.placeholder-text')) {
+    showToast('Udfyld felterne først.', 'error');
+    return;
+  }
+
+  const name = document.getElementById(prefix + '-name')?.value || 'Ejendom';
+  const date = new Date().toLocaleDateString('da-DK');
+
+  // Build exportable content
+  const wrapper = document.createElement('div');
+  wrapper.style.cssText = 'font-family:Inter,sans-serif;color:#1a202c;padding:20px;';
+
+  // Header
+  const header = document.createElement('div');
+  header.style.cssText = 'border-bottom:2px solid #1a365d;padding-bottom:12px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:baseline;';
+  header.innerHTML = `<div style="font-size:16px;font-weight:700;color:#1a365d;">Go Bolig - Investeringsrapport</div><div style="font-size:11px;color:#718096;">${name} &mdash; ${date}</div>`;
+  wrapper.appendChild(header);
+
+  // Clone results
+  const clone = resultsEl.cloneNode(true);
+  // Remove canvases (they don't export well in html2pdf, use the table data instead)
+  clone.querySelectorAll('canvas').forEach(c => c.remove());
+  clone.querySelectorAll('.chart-wrap, .chart-row').forEach(c => c.remove());
+  wrapper.appendChild(clone);
+
+  // Notes
+  const notes = document.getElementById(prefix + '-notes')?.value;
+  if (notes) {
+    const notesDiv = document.createElement('div');
+    notesDiv.style.cssText = 'margin-top:16px;padding:10px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;';
+    notesDiv.innerHTML = `<div style="font-size:10px;text-transform:uppercase;letter-spacing:0.04em;color:#718096;margin-bottom:4px;">Noter</div><div>${notes.replace(/\n/g, '<br>')}</div>`;
+    wrapper.appendChild(notesDiv);
+  }
+
+  const btn = document.getElementById(prefix + '-export-pdf');
+  btn.disabled = true;
+  btn.textContent = '...';
+
+  html2pdf().set({
+    margin: [10, 10, 10, 10],
+    filename: name.replace(/[^a-zA-Z0-9æøåÆØÅ\s-]/g, '') + ' - Go Bolig.pdf',
+    image: { type: 'jpeg', quality: 0.95 },
+    html2canvas: { scale: 2, useCORS: true },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+  }).from(wrapper).save().then(() => {
+    btn.disabled = false;
+    btn.textContent = 'PDF';
+    showToast('PDF downloadet!', 'success');
+  });
+}
+
+document.getElementById('r-export-pdf').addEventListener('click', () => exportPDF('r'));
+document.getElementById('f-export-pdf').addEventListener('click', () => exportPDF('f'));
 
 // ── Keyboard Shortcuts ───────────────────────────────────────────────
 document.addEventListener('keydown', (e) => {

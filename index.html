@@ -200,6 +200,14 @@
           </div>
         </div>
 
+        <!-- Noter -->
+        <div class="card collapsible collapsed">
+          <h2 class="card-toggle">Noter</h2>
+          <div class="card-body">
+            <textarea id="r-notes" class="notes-field" rows="4" placeholder="Observationer, forhold ved ejendommen, kontaktinfo..."></textarea>
+          </div>
+        </div>
+
         <div class="form-actions">
           <button class="btn-save" id="r-save">Gem ejendom</button>
           <button class="btn-reset" id="r-reset">Nulstil</button>
@@ -213,7 +221,10 @@
           <div class="card results-card">
             <div class="results-header">
               <h2>Likviditetsbudget</h2>
-              <button class="btn-print" onclick="window.print()" title="Print rapport">Print</button>
+              <div class="results-actions">
+                <button class="btn-export" id="r-export-pdf" title="Download PDF">PDF</button>
+                <button class="btn-print" onclick="window.print()" title="Print rapport">Print</button>
+              </div>
             </div>
             <div id="r-results">
               <p class="placeholder-text">Udfyld felterne for at se beregning.</p>
@@ -319,6 +330,14 @@
           </div>
         </div>
 
+        <!-- Noter -->
+        <div class="card collapsible collapsed">
+          <h2 class="card-toggle">Noter</h2>
+          <div class="card-body">
+            <textarea id="f-notes" class="notes-field" rows="4" placeholder="Observationer, renoveringsstrategi, kontaktinfo..."></textarea>
+          </div>
+        </div>
+
         <div class="form-actions">
           <button class="btn-save" id="f-save">Gem ejendom</button>
           <button class="btn-reset" id="f-reset">Nulstil</button>
@@ -331,7 +350,10 @@
           <div class="card results-card">
             <div class="results-header">
               <h2>Flip-resultat</h2>
-              <button class="btn-print" onclick="window.print()" title="Print rapport">Print</button>
+              <div class="results-actions">
+                <button class="btn-export" id="f-export-pdf" title="Download PDF">PDF</button>
+                <button class="btn-print" onclick="window.print()" title="Print rapport">Print</button>
+              </div>
             </div>
             <div id="f-results">
               <p class="placeholder-text">Udfyld felterne for at se beregning.</p>
@@ -345,10 +367,14 @@
   <!-- ======================== MINE EJENDOMME ======================== -->
   <section id="saved" class="tab-content">
     <div class="saved-container">
-      <h2>Gemte ejendomme</h2>
+      <div class="saved-header">
+        <h2>Gemte ejendomme</h2>
+        <button class="btn-compare" id="btn-compare" style="display:none">Sammenlign valgte</button>
+      </div>
       <div id="saved-list">
         <p class="placeholder-text">Ingen gemte ejendomme endnu.</p>
       </div>
+      <div id="compare-container"></div>
     </div>
   </section>
 
@@ -367,6 +393,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

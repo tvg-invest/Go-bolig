@@ -237,6 +237,31 @@ main {
   margin-bottom: 0;
 }
 
+.results-actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.btn-export {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 0.35rem 0.85rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s;
+  font-family: inherit;
+}
+
+.btn-export:hover { background: var(--primary-light); }
+
+.btn-export:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .btn-print {
   background: none;
   border: 1px solid var(--gray-300);
@@ -336,6 +361,27 @@ main {
   object-fit: cover;
   border-radius: 6px;
   display: block;
+}
+
+/* ===== Notes Field ===== */
+.notes-field {
+  width: 100%;
+  border: 1px solid var(--gray-300);
+  border-radius: 6px;
+  padding: 0.6rem 0.75rem;
+  font-size: 0.88rem;
+  font-family: inherit;
+  color: var(--gray-800);
+  background: var(--input-bg);
+  resize: vertical;
+  line-height: 1.5;
+  transition: border-color .15s;
+}
+
+.notes-field:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(43,108,176,.12);
 }
 
 /* ===== Dynamic rows (units, renovation) ===== */
@@ -806,6 +852,110 @@ main {
 .type-badge.flip {
   background: #fefcbf;
   color: #975a16;
+}
+
+/* ===== Saved Header ===== */
+.saved-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.saved-header h2 { margin-bottom: 0; }
+
+.btn-compare {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 0.5rem 1.25rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s;
+  font-family: inherit;
+}
+
+.btn-compare:hover { background: var(--primary-light); }
+
+.saved-card-select {
+  display: flex;
+  align-items: center;
+  margin-right: 0.75rem;
+}
+
+.saved-card-select input[type="checkbox"] {
+  width: 1.1rem;
+  height: 1.1rem;
+  cursor: pointer;
+}
+
+/* ===== Comparison Table ===== */
+#compare-container:empty { display: none; }
+
+.compare-card {
+  background: var(--card-bg);
+  border: 2px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 1.25rem 1.5rem;
+  margin-top: 1.5rem;
+  box-shadow: var(--shadow-md);
+}
+
+.compare-card h3 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--primary);
+  margin-bottom: 1rem;
+}
+
+.compare-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.compare-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.compare-table th,
+.compare-table td {
+  padding: 0.45rem 0.75rem;
+  text-align: right;
+  border-bottom: 1px solid var(--gray-200);
+  white-space: nowrap;
+}
+
+.compare-table th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--gray-500);
+  font-size: 0.8rem;
+}
+
+.compare-table thead th {
+  font-weight: 700;
+  color: var(--gray-800);
+  text-align: center;
+  border-bottom: 2px solid var(--gray-300);
+  font-size: 0.88rem;
+}
+
+.compare-table thead th:first-child {
+  text-align: left;
+}
+
+.compare-table td.best {
+  font-weight: 700;
+  color: var(--green);
+}
+
+.compare-table td.worst {
+  color: var(--gray-400);
 }
 
 /* ===== Toast Notifications ===== */
