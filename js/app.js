@@ -19,6 +19,26 @@ function cls(n) {
   return n >= 0 ? 'positive' : 'negative';
 }
 
+// ── Toast Notifications ─────────────────────────────────────────────
+function showToast(message, type = 'info', duration = 3000) {
+  const container = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${type}`;
+  toast.textContent = message;
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.classList.add('toast-out');
+    toast.addEventListener('animationend', () => toast.remove());
+  }, duration);
+}
+
+// ── Collapsible Cards ───────────────────────────────────────────────
+document.querySelectorAll('.collapsible .card-toggle').forEach(toggle => {
+  toggle.addEventListener('click', () => {
+    toggle.closest('.collapsible').classList.toggle('collapsed');
+  });
+});
+
 // ── Tabs ─────────────────────────────────────────────────────────────
 document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -139,7 +159,6 @@ document.getElementById('f-add-reno').addEventListener('click', () => addFlipRen
 
 // ── Rental Calculation ───────────────────────────────────────────────
 function calcRental() {
-  // Loan from purchase price * LTV%
   const purchasePriceForLoan = num('r-purchase');
   const loanPct = num('r-loan-pct');
   const loanAmt = purchasePriceForLoan * (loanPct / 100);
@@ -147,7 +166,6 @@ function calcRental() {
   document.getElementById('r-loan-amount-calc').textContent =
     loanAmt > 0 ? fmt(loanAmt) + ' kr.' : '–';
 
-  // Mortgage payment
   const rate = num('r-rate');
   const term = num('r-term');
   const interestOnly = document.getElementById('r-interest-only').checked;
@@ -206,15 +224,41 @@ function calcRental() {
   const netYield = purchasePrice > 0 ? ((annualNetIncome - annualOpex) / purchasePrice) * 100 : 0;
   const cashOnCash = equity > 0 ? (annualCashFlow / equity) * 100 : 0;
 
-  // Only show if there's something to show
+  // Nothing to show yet
   if (monthlyGrossIncome === 0 && purchasePrice === 0 && monthlyPayment === 0) {
     document.getElementById('r-results').innerHTML =
       '<p class="placeholder-text">Udfyld felterne for at se beregning.</p>';
     return;
   }
 
-  // Render
+  // ── Render ──
   let html = '';
+
+  // KPI Summary
+  html += '<div class="kpi-grid">';
+  html += `<div class="kpi-tile ${monthlyCashFlow >= 0 ? 'kpi-positive' : 'kpi-negative'}">
+    <div class="kpi-value">${fmtSigned(monthlyCashFlow)} kr.</div>
+    <div class="kpi-label">Mdl. cash flow</div>
+  </div>`;
+  if (grossYield > 0) {
+    html += `<div class="kpi-tile">
+      <div class="kpi-value">${grossYield.toFixed(1)}%</div>
+      <div class="kpi-label">Bruttoafkast</div>
+    </div>`;
+  }
+  if (netYield > 0) {
+    html += `<div class="kpi-tile">
+      <div class="kpi-value">${netYield.toFixed(1)}%</div>
+      <div class="kpi-label">Nettoafkast</div>
+    </div>`;
+  }
+  if (equity > 0) {
+    html += `<div class="kpi-tile ${cashOnCash >= 0 ? 'kpi-positive' : 'kpi-negative'}">
+      <div class="kpi-value">${cashOnCash.toFixed(1)}%</div>
+      <div class="kpi-label">Cash-on-cash</div>
+    </div>`;
+  }
+  html += '</div>';
 
   // Income section
   html += '<div class="result-section"><h3>Indtægter (årligt)</h3>';
@@ -286,7 +330,50 @@ function calcRental() {
   }
   html += '</div>';
 
+  // Sensitivity analysis - rent vs interest rate
+  if (monthlyGrossIncome > 0 && purchasePrice > 0) {
+    html += buildRentalSensitivity(purchasePrice, loanPct, term, interestOnly, monthlyGrossIncome, vacancyPct, annualOpex, rate);
+  }
+
   document.getElementById('r-results').innerHTML = html;
+}
+
+// ── Rental Sensitivity Table ─────────────────────────────────────────
+function buildRentalSensitivity(purchasePrice, loanPct, term, interestOnly, monthlyRent, vacancyPct, annualOpex, currentRate) {
+  const rentSteps = [-2000, -1000, 0, 1000, 2000];
+  const rateSteps = [-1.0, -0.5, 0, 0.5, 1.0];
+
+  let html = '<div class="sensitivity-section"><h3>Følsomhedsanalyse (mdl. cash flow)</h3>';
+  html += '<table class="sensitivity-table"><thead><tr><th>Rente \\ Husleje</th>';
+
+  rentSteps.forEach(rs => {
+    const r = monthlyRent + rs;
+    html += `<th>${fmt(r)} kr.</th>`;
+  });
+  html += '</tr></thead><tbody>';
+
+  rateSteps.forEach(rateAdj => {
+    const adjRate = currentRate + rateAdj;
+    if (adjRate < 0) return;
+    html += `<tr><td><strong>${adjRate.toFixed(1)}%</strong></td>`;
+
+    rentSteps.forEach(rs => {
+      const adjRent = monthlyRent + rs;
+      const adjAnnualGross = adjRent * 12;
+      const adjAnnualNet = adjAnnualGross * (1 - vacancyPct / 100);
+      const loanAmt = purchasePrice * (loanPct / 100);
+      const pmt = calcMonthlyPayment(loanAmt, adjRate, term, interestOnly);
+      const annualPmt = pmt * 12;
+      const cf = (adjAnnualNet - annualOpex - annualPmt) / 12;
+      const isCurrent = rs === 0 && rateAdj === 0;
+      html += `<td class="${isCurrent ? 'current' : ''} ${cls(cf)}">${fmtSigned(cf)}</td>`;
+    });
+
+    html += '</tr>';
+  });
+
+  html += '</tbody></table></div>';
+  return html;
 }
 
 // ── Flip Calculation ─────────────────────────────────────────────────
@@ -316,7 +403,6 @@ function calcFlip() {
   const netSalePrice = salePrice - saleCosts;
   const profit = netSalePrice - totalInvestment;
   const roi = totalInvestment > 0 ? (profit / totalInvestment) * 100 : 0;
-  const equityNeeded = totalInvestment; // Simplified - they put up the total
 
   if (purchasePrice === 0 && salePrice === 0 && totalReno === 0) {
     document.getElementById('f-results').innerHTML =
@@ -325,6 +411,35 @@ function calcFlip() {
   }
 
   let html = '';
+
+  // KPI Summary
+  html += '<div class="kpi-grid">';
+  html += `<div class="kpi-tile ${profit >= 0 ? 'kpi-positive' : 'kpi-negative'}">
+    <div class="kpi-value">${fmtSigned(profit)} kr.</div>
+    <div class="kpi-label">Fortjeneste</div>
+  </div>`;
+  if (totalInvestment > 0) {
+    html += `<div class="kpi-tile ${roi >= 0 ? 'kpi-positive' : 'kpi-negative'}">
+      <div class="kpi-value">${roi.toFixed(1)}%</div>
+      <div class="kpi-label">ROI</div>
+    </div>`;
+  }
+  if (holdMonths > 0 && totalInvestment > 0) {
+    const annualizedRoi = (Math.pow(1 + profit / totalInvestment, 12 / holdMonths) - 1) * 100;
+    if (isFinite(annualizedRoi)) {
+      html += `<div class="kpi-tile ${annualizedRoi >= 0 ? 'kpi-positive' : 'kpi-negative'}">
+        <div class="kpi-value">${annualizedRoi.toFixed(1)}%</div>
+        <div class="kpi-label">Annualiseret ROI</div>
+      </div>`;
+    }
+  }
+  if (totalInvestment > 0) {
+    html += `<div class="kpi-tile">
+      <div class="kpi-value">${fmt(totalInvestment)} kr.</div>
+      <div class="kpi-label">Samlet investering</div>
+    </div>`;
+  }
+  html += '</div>';
 
   // Purchase
   html += '<div class="result-section"><h3>Investering</h3>';
@@ -383,11 +498,49 @@ function calcFlip() {
   }
   html += '</div>';
 
+  // Sensitivity - sale price vs renovation cost
+  if (salePrice > 0 && totalInvestment > 0) {
+    html += buildFlipSensitivity(purchasePrice, closingCosts, totalReno, totalHoldingCost, salePrice, saleCosts);
+  }
+
   document.getElementById('f-results').innerHTML = html;
 }
 
+// ── Flip Sensitivity Table ───────────────────────────────────────────
+function buildFlipSensitivity(purchasePrice, closingCosts, totalReno, totalHoldingCost, salePrice, saleCosts) {
+  const salePriceSteps = [-200000, -100000, 0, 100000, 200000];
+  const renoSteps = [-50000, -25000, 0, 25000, 50000];
+
+  let html = '<div class="sensitivity-section"><h3>Følsomhedsanalyse (fortjeneste)</h3>';
+  html += '<table class="sensitivity-table"><thead><tr><th>Reno \\ Salgspris</th>';
+
+  salePriceSteps.forEach(sp => {
+    html += `<th>${fmt(salePrice + sp)} kr.</th>`;
+  });
+  html += '</tr></thead><tbody>';
+
+  renoSteps.forEach(ra => {
+    const adjReno = totalReno + ra;
+    if (adjReno < 0) return;
+    html += `<tr><td><strong>${fmt(adjReno)} kr.</strong></td>`;
+
+    salePriceSteps.forEach(sp => {
+      const adjSale = salePrice + sp;
+      const adjNet = adjSale - saleCosts;
+      const adjInv = purchasePrice + closingCosts + adjReno + totalHoldingCost;
+      const adjProfit = adjNet - adjInv;
+      const isCurrent = sp === 0 && ra === 0;
+      html += `<td class="${isCurrent ? 'current' : ''} ${cls(adjProfit)}">${fmtSigned(adjProfit)}</td>`;
+    });
+
+    html += '</tr>';
+  });
+
+  html += '</tbody></table></div>';
+  return html;
+}
+
 // ── Real-time updates ────────────────────────────────────────────────
-// Rental inputs
 ['r-purchase', 'r-closing', 'r-loan-pct', 'r-rate', 'r-term',
  'r-payment-override', 'r-tax', 'r-insurance', 'r-maintenance',
  'r-admin', 'r-utilities', 'r-other', 'r-vacancy'].forEach(id => {
@@ -395,7 +548,6 @@ function calcFlip() {
 });
 document.getElementById('r-interest-only')?.addEventListener('change', calcRental);
 
-// Flip inputs
 ['f-purchase', 'f-closing', 'f-hold-months', 'f-hold-cost',
  'f-hold-tax', 'f-hold-insurance', 'f-hold-other',
  'f-sale-price', 'f-sale-costs'].forEach(id => {
@@ -492,11 +644,9 @@ function loadRentalData(data) {
   document.getElementById('r-other').value = data.other || '';
   document.getElementById('r-vacancy').value = data.vacancy || '';
 
-  // Clear and re-add units
   document.getElementById('r-units-list').innerHTML = '';
   (data.units || []).forEach(u => addRentalUnit(u.name, u.rent));
 
-  // Clear and re-add reno
   document.getElementById('r-reno-list').innerHTML = '';
   (data.reno || []).forEach(r => addRentalReno(r.desc, r.cost));
 
@@ -515,7 +665,6 @@ function loadFlipData(data) {
   document.getElementById('f-sale-price').value = data.salePrice || '';
   document.getElementById('f-sale-costs').value = data.saleCosts || '';
 
-  // Clear and re-add reno
   document.getElementById('f-reno-list').innerHTML = '';
   (data.reno || []).forEach(r => addFlipReno(r.desc, r.cost));
 
@@ -525,24 +674,24 @@ function loadFlipData(data) {
 // Save buttons
 document.getElementById('r-save').addEventListener('click', () => {
   const data = gatherRentalData();
-  if (!data.name) { alert('Angiv venligst et navn/adresse.'); return; }
+  if (!data.name) { showToast('Angiv venligst et navn/adresse.', 'error'); return; }
   data.id = Date.now();
   data.savedAt = new Date().toISOString();
   const props = getProperties();
   props.push(data);
   saveProperties(props);
-  alert('Ejendom gemt!');
+  showToast('Ejendom gemt!', 'success');
 });
 
 document.getElementById('f-save').addEventListener('click', () => {
   const data = gatherFlipData();
-  if (!data.name) { alert('Angiv venligst et navn/adresse.'); return; }
+  if (!data.name) { showToast('Angiv venligst et navn/adresse.', 'error'); return; }
   data.id = Date.now();
   data.savedAt = new Date().toISOString();
   const props = getProperties();
   props.push(data);
   saveProperties(props);
-  alert('Ejendom gemt!');
+  showToast('Ejendom gemt!', 'success');
 });
 
 // Reset buttons
@@ -552,14 +701,18 @@ document.getElementById('r-reset').addEventListener('click', () => {
   document.getElementById('r-interest-only').checked = false;
   document.getElementById('r-units-list').innerHTML = '';
   document.getElementById('r-reno-list').innerHTML = '';
+  document.getElementById('r-property-image').innerHTML = '';
   calcRental();
+  showToast('Felter nulstillet.', 'info');
 });
 
 document.getElementById('f-reset').addEventListener('click', () => {
   if (!confirm('Nulstil alle felter?')) return;
   document.querySelectorAll('#flip input[type="number"], #flip input[type="text"]').forEach(el => el.value = '');
   document.getElementById('f-reno-list').innerHTML = '';
+  document.getElementById('f-property-image').innerHTML = '';
   calcFlip();
+  showToast('Felter nulstillet.', 'info');
 });
 
 // ── Saved Properties List ────────────────────────────────────────────
@@ -614,20 +767,19 @@ window.loadProperty = function(id) {
   if (!p) return;
 
   if (p.type === 'rental') {
-    // Switch to rental tab
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.tab-content').forEach(s => s.classList.remove('active'));
     document.querySelector('[data-tab="rental"]').classList.add('active');
     document.getElementById('rental').classList.add('active');
     loadRentalData(p);
   } else {
-    // Switch to flip tab
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.tab-content').forEach(s => s.classList.remove('active'));
     document.querySelector('[data-tab="flip"]').classList.add('active');
     document.getElementById('flip').classList.add('active');
     loadFlipData(p);
   }
+  showToast(`${p.name} indlæst.`, 'success');
 };
 
 window.deleteProperty = function(id) {
@@ -635,6 +787,7 @@ window.deleteProperty = function(id) {
   const props = getProperties().filter(x => x.id !== id);
   saveProperties(props);
   renderSavedList();
+  showToast('Ejendom slettet.', 'info');
 };
 
 // ── URL Fetch / Scrape ───────────────────────────────────────────────
@@ -682,6 +835,14 @@ async function fetchPropertyDual(prefix, applyFn) {
       document.getElementById(prefix + '-url-magler').value = result.discovered.realtor;
     }
 
+    // Show property image
+    if (d.imageUrl) {
+      const imageWrap = document.getElementById(prefix + '-property-image');
+      if (imageWrap) {
+        imageWrap.innerHTML = `<img src="${d.imageUrl}" alt="Ejendomsbillede" onerror="this.parentElement.innerHTML=''">`;
+      }
+    }
+
     // Build preview
     let preview = '<div class="property-preview">';
     if (d.address) preview += previewRow('Adresse', d.address, true);
@@ -707,6 +868,7 @@ async function fetchPropertyDual(prefix, applyFn) {
     if (result.discovered?.realtor) msg += ' (mæglerlink fundet automatisk)';
     statusEl.className = 'url-status success';
     statusEl.textContent = msg;
+    showToast('Data hentet fra annonce!', 'success');
 
   } catch (err) {
     statusEl.className = 'url-status error';
@@ -715,6 +877,7 @@ async function fetchPropertyDual(prefix, applyFn) {
     } else {
       statusEl.textContent = 'Fejl: ' + err.message;
     }
+    showToast('Kunne ikke hente data.', 'error');
   } finally {
     btn.classList.remove('loading');
     btn.disabled = false;
@@ -763,6 +926,14 @@ document.getElementById('f-fetch').addEventListener('click', () => {
   });
 });
 
+// ── Print Preparation ────────────────────────────────────────────────
+window.addEventListener('beforeprint', () => {
+  const activeTab = document.querySelector('.tab-content.active');
+  const prefix = activeTab?.id === 'flip' ? 'f' : 'r';
+  const name = document.getElementById(prefix + '-name')?.value || '';
+  document.getElementById('print-address').textContent = name;
+  document.getElementById('print-date').textContent = new Date().toLocaleDateString('da-DK');
+});
+
 // ── Init ─────────────────────────────────────────────────────────────
-// Add one empty unit row by default
 addRentalUnit('', '');
