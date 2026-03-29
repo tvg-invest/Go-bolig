@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Go Bolig - Ejendomsberegner</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <h1>Go Bolig</h1>
+    <span class="header-sub">Ejendomsberegner</span>
+  </div>
+</header>
+
+<nav>
+  <button class="tab-btn active" data-tab="rental">Udlejning</button>
+  <button class="tab-btn" data-tab="flip">Flip</button>
+  <button class="tab-btn" data-tab="saved">Mine Ejendomme</button>
+</nav>
+
+<main>
+
+  <!-- ======================== UDLEJNING ======================== -->
+  <section id="rental" class="tab-content active">
+    <div class="calc-layout">
+      <div class="form-panel">
+
+        <!-- URL Import -->
+        <div class="card url-card">
+          <h2>Hent data fra annonce</h2>
+          <p class="hint">Indsæt et eller begge links. Finder du kun det ene, prøver vi at finde det andet automatisk.</p>
+          <div class="url-row">
+            <label class="url-label">Boligsiden</label>
+            <input type="text" id="r-url-boligsiden" placeholder="https://www.boligsiden.dk/..." class="url-input">
+          </div>
+          <div class="url-row">
+            <label class="url-label">Mægler</label>
+            <input type="text" id="r-url-magler" placeholder="https://www.edc.dk/... eller home.dk, nybolig.dk ..." class="url-input">
+          </div>
+          <button class="btn-fetch" id="r-fetch">Hent data</button>
+          <div id="r-url-status" class="url-status"></div>
+          <div id="r-url-info" class="url-info"></div>
+        </div>
+
+        <!-- Ejendomsinfo -->
+        <div class="card">
+          <h2>Ejendomsinfo</h2>
+          <div class="form-grid">
+            <div class="field">
+              <label for="r-name">Navn / Adresse</label>
+              <input type="text" id="r-name" placeholder="Fx Vestergade 12, Odense">
+            </div>
+            <div class="field">
+              <label for="r-purchase">Købspris (kr.)</label>
+              <input type="number" id="r-purchase" placeholder="2.000.000" step="1000">
+            </div>
+            <div class="field">
+              <label for="r-closing">Købsomkostninger (kr.)</label>
+              <input type="number" id="r-closing" placeholder="50.000" step="1000">
+            </div>
+          </div>
+        </div>
+
+        <!-- Finansiering -->
+        <div class="card">
+          <h2>Finansiering</h2>
+          <div class="form-grid">
+            <div class="field">
+              <label for="r-loan-pct">Belåning (%)</label>
+              <input type="number" id="r-loan-pct" value="80" step="1" min="0" max="100">
+            </div>
+            <div class="field computed">
+              <label>Lånebeløb</label>
+              <span id="r-loan-amount-calc" class="computed-val">–</span>
+            </div>
+            <div class="field">
+              <label for="r-rate">Rente (% p.a.)</label>
+              <input type="number" id="r-rate" value="4" step="0.01">
+            </div>
+            <div class="field">
+              <label for="r-term">Løbetid (år)</label>
+              <input type="number" id="r-term" value="30" step="1">
+            </div>
+            <div class="field checkbox-field">
+              <label>
+                <input type="checkbox" id="r-interest-only">
+                Afdragsfrit
+              </label>
+            </div>
+            <div class="field computed">
+              <label>Beregnet mdl. ydelse</label>
+              <span id="r-payment-calc" class="computed-val">–</span>
+            </div>
+            <div class="field">
+              <label for="r-payment-override">Eller indtast mdl. ydelse manuelt (kr.)</label>
+              <input type="number" id="r-payment-override" placeholder="Valgfrit" step="100">
+            </div>
+          </div>
+        </div>
+
+        <!-- Lejemål -->
+        <div class="card">
+          <h2>Lejemål</h2>
+          <p class="hint">Tilføj alle lejemål i ejendommen.</p>
+          <div id="r-units-list"></div>
+          <button class="btn-add" id="r-add-unit">+ Tilføj lejemål</button>
+        </div>
+
+        <!-- Udgifter -->
+        <div class="card">
+          <h2>Årlige driftsudgifter</h2>
+          <div class="form-grid">
+            <div class="field">
+              <label for="r-tax">Ejendomsskat (kr./år)</label>
+              <input type="number" id="r-tax" placeholder="12.000" step="100">
+            </div>
+            <div class="field">
+              <label for="r-insurance">Forsikring (kr./år)</label>
+              <input type="number" id="r-insurance" placeholder="8.000" step="100">
+            </div>
+            <div class="field">
+              <label for="r-maintenance">Vedligeholdelse (kr./år)</label>
+              <input type="number" id="r-maintenance" placeholder="15.000" step="100">
+            </div>
+            <div class="field">
+              <label for="r-admin">Administration (kr./år)</label>
+              <input type="number" id="r-admin" placeholder="5.000" step="100">
+            </div>
+            <div class="field">
+              <label for="r-utilities">Forsyning/drift (kr./md.)</label>
+              <input type="number" id="r-utilities" placeholder="0" step="100">
+            </div>
+            <div class="field">
+              <label for="r-other">Andre udgifter (kr./år)</label>
+              <input type="number" id="r-other" placeholder="0" step="100">
+            </div>
+            <div class="field">
+              <label for="r-vacancy">Tomgangsprocent (%)</label>
+              <input type="number" id="r-vacancy" placeholder="5" step="0.5" min="0" max="100">
+            </div>
+          </div>
+        </div>
+
+        <!-- Renovering -->
+        <div class="card">
+          <h2>Renovering</h2>
+          <p class="hint">Valgfrit - tilføj poster til renoveringsbudget.</p>
+          <div id="r-reno-list"></div>
+          <button class="btn-add" id="r-add-reno">+ Tilføj post</button>
+        </div>
+
+        <div class="form-actions">
+          <button class="btn-save" id="r-save">Gem ejendom</button>
+          <button class="btn-reset" id="r-reset">Nulstil</button>
+        </div>
+
+      </div>
+
+      <!-- Resultat-panel -->
+      <div class="results-panel">
+        <div class="results-sticky">
+          <div class="card results-card">
+            <h2>Likviditetsbudget</h2>
+            <div id="r-results">
+              <p class="placeholder-text">Udfyld felterne for at se beregning.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================== FLIP ======================== -->
+  <section id="flip" class="tab-content">
+    <div class="calc-layout">
+      <div class="form-panel">
+
+        <!-- URL Import -->
+        <div class="card url-card">
+          <h2>Hent data fra annonce</h2>
+          <p class="hint">Indsæt et eller begge links. Finder du kun det ene, prøver vi at finde det andet automatisk.</p>
+          <div class="url-row">
+            <label class="url-label">Boligsiden</label>
+            <input type="text" id="f-url-boligsiden" placeholder="https://www.boligsiden.dk/..." class="url-input">
+          </div>
+          <div class="url-row">
+            <label class="url-label">Mægler</label>
+            <input type="text" id="f-url-magler" placeholder="https://www.edc.dk/... eller home.dk, nybolig.dk ..." class="url-input">
+          </div>
+          <button class="btn-fetch" id="f-fetch">Hent data</button>
+          <div id="f-url-status" class="url-status"></div>
+          <div id="f-url-info" class="url-info"></div>
+        </div>
+
+        <div class="card">
+          <h2>Ejendomsinfo</h2>
+          <div class="form-grid">
+            <div class="field">
+              <label for="f-name">Navn / Adresse</label>
+              <input type="text" id="f-name" placeholder="Fx Nørregade 8, Aarhus">
+            </div>
+            <div class="field">
+              <label for="f-purchase">Købspris (kr.)</label>
+              <input type="number" id="f-purchase" placeholder="1.500.000" step="1000">
+            </div>
+            <div class="field">
+              <label for="f-closing">Købsomkostninger (kr.)</label>
+              <input type="number" id="f-closing" placeholder="40.000" step="1000">
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Finansiering under holdeperiode</h2>
+          <div class="form-grid">
+            <div class="field">
+              <label for="f-hold-months">Holdeperiode (måneder)</label>
+              <input type="number" id="f-hold-months" placeholder="6" step="1">
+            </div>
+            <div class="field">
+              <label for="f-hold-cost">Mdl. finansieringsomkostning (kr.)</label>
+              <input type="number" id="f-hold-cost" placeholder="5.000" step="100">
+            </div>
+            <div class="field">
+              <label for="f-hold-tax">Ejendomsskat (kr./md.)</label>
+              <input type="number" id="f-hold-tax" placeholder="1.000" step="100">
+            </div>
+            <div class="field">
+              <label for="f-hold-insurance">Forsikring (kr./md.)</label>
+              <input type="number" id="f-hold-insurance" placeholder="600" step="100">
+            </div>
+            <div class="field">
+              <label for="f-hold-other">Andre mdl. udgifter (kr.)</label>
+              <input type="number" id="f-hold-other" placeholder="0" step="100">
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Renovering</h2>
+          <div id="f-reno-list"></div>
+          <button class="btn-add" id="f-add-reno">+ Tilføj post</button>
+        </div>
+
+        <div class="card">
+          <h2>Salg</h2>
+          <div class="form-grid">
+            <div class="field">
+              <label for="f-sale-price">Forventet salgspris (kr.)</label>
+              <input type="number" id="f-sale-price" placeholder="2.200.000" step="1000">
+            </div>
+            <div class="field">
+              <label for="f-sale-costs">Salgsomkostninger (kr.)</label>
+              <input type="number" id="f-sale-costs" placeholder="60.000" step="1000">
+            </div>
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button class="btn-save" id="f-save">Gem ejendom</button>
+          <button class="btn-reset" id="f-reset">Nulstil</button>
+        </div>
+
+      </div>
+
+      <div class="results-panel">
+        <div class="results-sticky">
+          <div class="card results-card">
+            <h2>Flip-resultat</h2>
+            <div id="f-results">
+              <p class="placeholder-text">Udfyld felterne for at se beregning.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================== MINE EJENDOMME ======================== -->
+  <section id="saved" class="tab-content">
+    <div class="saved-container">
+      <h2>Gemte ejendomme</h2>
+      <div id="saved-list">
+        <p class="placeholder-text">Ingen gemte ejendomme endnu.</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script src="js/app.js"></script>
+</body>
+</html>
