@@ -19,6 +19,102 @@ function cls(n) {
   return n >= 0 ? 'positive' : 'negative';
 }
 
+// ── Deal Score ──────────────────────────────────────────────────────
+function computeRentalDealScore(dscr, capRate, cashOnCash, breakEvenOcc, grossYield) {
+  function linear(val, min, max) { return Math.max(0, Math.min(100, ((val - min) / (max - min)) * 100)); }
+  const dscrScore = linear(dscr, 0.8, 1.5);
+  const capScore = linear(capRate, 2, 8);
+  const cocScore = linear(cashOnCash, 0, 15);
+  const beScore = 100 - linear(breakEvenOcc, 60, 100);
+  const gyScore = linear(grossYield, 3, 10);
+  return Math.round(dscrScore * 0.25 + capScore * 0.20 + cocScore * 0.20 + beScore * 0.15 + gyScore * 0.10 + (dscr > 0 ? 10 : 0));
+}
+
+function computeFlipDealScore(roi, annualizedRoi, profitMargin, renoToPriceRatio) {
+  function linear(val, min, max) { return Math.max(0, Math.min(100, ((val - min) / (max - min)) * 100)); }
+  const roiScore = linear(roi, 0, 30);
+  const annScore = linear(annualizedRoi, 0, 50);
+  const marginScore = linear(profitMargin, 0, 25);
+  const renoScore = 100 - linear(renoToPriceRatio, 0, 50);
+  return Math.round(roiScore * 0.30 + annScore * 0.30 + marginScore * 0.20 + renoScore * 0.20);
+}
+
+function drawGauge(canvasId, score) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const w = 200, h = 120;
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  canvas.style.width = w + 'px';
+  canvas.style.height = h + 'px';
+  ctx.scale(dpr, dpr);
+
+  const cx = w / 2, cy = h - 10, r = 75;
+
+  // Background arc
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, Math.PI, 0);
+  ctx.lineWidth = 16;
+  ctx.strokeStyle = '#e2e8f0';
+  ctx.lineCap = 'round';
+  ctx.stroke();
+
+  // Gradient arc
+  const gradient = ctx.createLinearGradient(cx - r, cy, cx + r, cy);
+  gradient.addColorStop(0, '#e53e3e');
+  gradient.addColorStop(0.35, '#dd6b20');
+  gradient.addColorStop(0.5, '#d69e2e');
+  gradient.addColorStop(0.75, '#38a169');
+  gradient.addColorStop(1, '#276749');
+
+  const angle = Math.PI + (score / 100) * Math.PI;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, Math.PI, Math.min(angle, Math.PI * 2));
+  ctx.lineWidth = 16;
+  ctx.strokeStyle = gradient;
+  ctx.lineCap = 'round';
+  ctx.stroke();
+
+  // Needle
+  const needleAngle = Math.PI + (score / 100) * Math.PI;
+  const nx = cx + Math.cos(needleAngle) * (r - 25);
+  const ny = cy + Math.sin(needleAngle) * (r - 25);
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(nx, ny);
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = '#1a202c';
+  ctx.lineCap = 'round';
+  ctx.stroke();
+
+  // Center dot
+  ctx.beginPath();
+  ctx.arc(cx, cy, 5, 0, Math.PI * 2);
+  ctx.fillStyle = '#1a202c';
+  ctx.fill();
+
+  // Score text
+  ctx.font = 'bold 28px Inter, sans-serif';
+  ctx.fillStyle = '#1a202c';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'bottom';
+  ctx.fillText(score, cx, cy - 12);
+
+  ctx.font = '500 10px Inter, sans-serif';
+  ctx.fillStyle = '#718096';
+  ctx.fillText('DEAL SCORE', cx, cy - 2);
+}
+
+function getVerdict(score) {
+  if (score >= 80) return { text: 'Fremragende investering', color: '#276749' };
+  if (score >= 60) return { text: 'God investering', color: '#38a169' };
+  if (score >= 40) return { text: 'Acceptabel', color: '#d69e2e' };
+  if (score >= 20) return { text: 'Tvivlsom - undersøg nærmere', color: '#dd6b20' };
+  return { text: 'Frarådes', color: '#e53e3e' };
+}
+
 // ── Toast Notifications ─────────────────────────────────────────────
 function showToast(message, type = 'info', duration = 3000) {
   const container = document.getElementById('toast-container');
@@ -259,6 +355,11 @@ function calcRental() {
   // ── Render ──
   let html = '';
 
+  // Deal Score
+  const dealScore = computeRentalDealScore(dscr, capRate, cashOnCash, breakEvenOccupancy, grossYield);
+  const verdict = getVerdict(dealScore);
+  html += `<div class="deal-score-wrap"><canvas id="r-gauge-canvas" width="200" height="120"></canvas><div class="deal-verdict" style="color:${verdict.color}">${verdict.text}</div></div>`;
+
   // KPI Summary
   html += '<div class="kpi-grid">';
   html += kpiTile(fmtSigned(monthlyCashFlow) + ' kr.', 'Mdl. cash flow', monthlyCashFlow);
@@ -370,6 +471,9 @@ function calcRental() {
   }
 
   document.getElementById('r-results').innerHTML = html;
+
+  // Draw deal score gauge
+  drawGauge('r-gauge-canvas', dealScore);
 
   // Render charts after DOM update
   renderRentalCharts(annualPayment, tax, insurance, maintenance, admin, annualUtilities, other, annualNetIncome, annualTotalExpenses, purchasePrice, loanAmt, rate, term, interestOnly, annualOpex, monthlyGrossIncome, vacancyPct);
@@ -613,6 +717,14 @@ function calcFlip() {
 
   let html = '';
 
+  // Deal Score for flip
+  const profitMargin = salePrice > 0 ? (profit / salePrice) * 100 : 0;
+  const renoToPriceRatio = purchasePrice > 0 ? (totalReno / purchasePrice) * 100 : 0;
+  const annRoiForScore = (holdMonths > 0 && totalInvestment > 0) ? (Math.pow(1 + profit / totalInvestment, 12 / holdMonths) - 1) * 100 : roi;
+  const flipDealScore = computeFlipDealScore(roi, isFinite(annRoiForScore) ? annRoiForScore : roi, profitMargin, renoToPriceRatio);
+  const flipVerdict = getVerdict(flipDealScore);
+  html += `<div class="deal-score-wrap"><canvas id="f-gauge-canvas" width="200" height="120"></canvas><div class="deal-verdict" style="color:${flipVerdict.color}">${flipVerdict.text}</div></div>`;
+
   // KPI Summary
   html += '<div class="kpi-grid">';
   html += kpiTile(fmtSigned(profit) + ' kr.', 'Fortjeneste', profit);
@@ -690,6 +802,9 @@ function calcFlip() {
   }
 
   document.getElementById('f-results').innerHTML = html;
+
+  // Draw deal score gauge
+  drawGauge('f-gauge-canvas', flipDealScore);
 
   // Waterfall chart
   renderFlipChart(purchasePrice, closingCosts, totalReno, totalHoldingCost, saleCosts, salePrice, profit);
@@ -1021,6 +1136,7 @@ document.getElementById('f-reset').addEventListener('click', () => {
 
 // ── Saved Properties List ────────────────────────────────────────────
 function renderSavedList() {
+  renderPortfolioDashboard();
   const props = getProperties();
   const container = document.getElementById('saved-list');
   const compareBtn = document.getElementById('btn-compare');
@@ -1450,6 +1566,201 @@ function exportPDF(prefix) {
 
 document.getElementById('r-export-pdf').addEventListener('click', () => exportPDF('r'));
 document.getElementById('f-export-pdf').addEventListener('click', () => exportPDF('f'));
+
+// ── Excel Export ─────────────────────────────────────────────────────
+function exportExcel(prefix) {
+  if (typeof XLSX === 'undefined') {
+    showToast('Excel-bibliotek indlæses...', 'info');
+    return;
+  }
+
+  const name = document.getElementById(prefix + '-name')?.value || 'Ejendom';
+  const date = new Date().toLocaleDateString('da-DK');
+  const wb = XLSX.utils.book_new();
+
+  if (prefix === 'r') {
+    // Rental Excel
+    const data = gatherRentalData();
+    const loanAmt = data.purchase * ((data.loanPct || 80) / 100);
+    const monthlyRent = (data.units || []).reduce((s, u) => s + u.rent, 0);
+    const annualGross = monthlyRent * 12;
+    const annualNet = annualGross * (1 - (data.vacancy || 0) / 100);
+    const opex = (data.tax || 0) + (data.insurance || 0) + (data.maintenance || 0) + (data.admin || 0) + ((data.utilities || 0) * 12) + (data.other || 0);
+    const pmt = calcMonthlyPayment(loanAmt, data.rate || 4, data.term || 30, data.interestOnly) * 12;
+    const totalReno = (data.reno || []).reduce((s, r) => s + r.cost, 0);
+    const totalInv = data.purchase + (data.closing || 0) + totalReno;
+    const equity = totalInv - loanAmt;
+    const noi = annualNet - opex;
+    const cf = noi - pmt;
+
+    // Sheet 1: Overblik
+    const summary = [
+      ['Go Bolig - Investeringsrapport', '', date],
+      [name],
+      [],
+      ['Nøgletal', 'Værdi'],
+      ['Købspris', data.purchase],
+      ['Samlet investering', totalInv],
+      ['Lån', loanAmt],
+      ['Egenkapital', equity],
+      ['Mdl. husleje', monthlyRent],
+      ['Årlig netto indtægt', annualNet],
+      ['Årlige driftsudgifter', opex],
+      ['Årlig ydelse', pmt],
+      ['Årligt cash flow', cf],
+      ['Mdl. cash flow', cf / 12],
+      [],
+      ['Afkast', '%'],
+      ['Bruttoafkast', data.purchase > 0 ? +(annualGross / data.purchase * 100).toFixed(1) : 0],
+      ['Cap Rate', data.purchase > 0 ? +(noi / data.purchase * 100).toFixed(1) : 0],
+      ['Cash-on-cash', equity > 0 ? +(cf / equity * 100).toFixed(1) : 0],
+      ['DSCR', pmt > 0 ? +(noi / pmt).toFixed(2) : 0],
+    ];
+    const ws1 = XLSX.utils.aoa_to_sheet(summary);
+    ws1['!cols'] = [{ wch: 25 }, { wch: 18 }, { wch: 15 }];
+    XLSX.utils.book_append_sheet(wb, ws1, 'Overblik');
+
+    // Sheet 2: Likviditetsbudget
+    const budget = [
+      ['Likviditetsbudget', name],
+      [],
+      ['Indtægter', 'Årligt'],
+    ];
+    (data.units || []).forEach(u => {
+      if (u.rent > 0) budget.push([u.name || 'Lejemål', u.rent * 12]);
+    });
+    budget.push(['Brutto lejeindtægt', annualGross]);
+    if (data.vacancy) budget.push(['Tomgang (' + data.vacancy + '%)', -annualGross * data.vacancy / 100]);
+    budget.push(['Netto lejeindtægt', annualNet]);
+    budget.push([]);
+    budget.push(['Udgifter', 'Årligt']);
+    if (pmt > 0) budget.push(['Ydelse på lån', pmt]);
+    if (data.tax) budget.push(['Ejendomsskat', data.tax]);
+    if (data.insurance) budget.push(['Forsikring', data.insurance]);
+    if (data.maintenance) budget.push(['Vedligeholdelse', data.maintenance]);
+    if (data.admin) budget.push(['Administration', data.admin]);
+    if (data.utilities) budget.push(['Forsyning/drift', data.utilities * 12]);
+    if (data.other) budget.push(['Andet', data.other]);
+    budget.push(['Total udgifter', opex + pmt]);
+    budget.push([]);
+    budget.push(['Cash flow', cf]);
+    const ws2 = XLSX.utils.aoa_to_sheet(budget);
+    ws2['!cols'] = [{ wch: 25 }, { wch: 18 }];
+    XLSX.utils.book_append_sheet(wb, ws2, 'Likviditetsbudget');
+
+    // Sheet 3: 10-års projektion
+    const proj = [['År', 'Ejendomsværdi', 'Rest lån', 'Egenkapital', 'Indtægt', 'Cash flow', 'Kumuleret CF']];
+    let curInc = annualNet;
+    let cumCF = 0;
+    const ri = data.rentIncrease || 0;
+    const ap = data.appreciation || 0;
+    for (let y = 1; y <= 10; y++) {
+      curInc *= (1 + ri / 100);
+      const pv = data.purchase * Math.pow(1 + ap / 100, y);
+      const rl = data.interestOnly ? loanAmt : Math.max(0, remainingBalance(loanAmt, data.rate || 4, data.term || 30, y * 12));
+      const yCF = curInc - opex - pmt;
+      cumCF += yCF;
+      proj.push([y, Math.round(pv), Math.round(rl), Math.round(pv - rl), Math.round(curInc), Math.round(yCF), Math.round(cumCF)]);
+    }
+    const ws3 = XLSX.utils.aoa_to_sheet(proj);
+    ws3['!cols'] = [{ wch: 6 }, { wch: 16 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }];
+    XLSX.utils.book_append_sheet(wb, ws3, '10-års projektion');
+
+  } else {
+    // Flip Excel
+    const data = gatherFlipData();
+    const totalReno = (data.reno || []).reduce((s, r) => s + r.cost, 0);
+    const holdCost = ((data.holdCost || 0) + (data.holdTax || 0) + (data.holdInsurance || 0) + (data.holdOther || 0)) * (data.holdMonths || 0);
+    const totalInv = data.purchase + (data.closing || 0) + totalReno + holdCost;
+    const netSale = (data.salePrice || 0) - (data.saleCosts || 0);
+    const profit = netSale - totalInv;
+    const roi = totalInv > 0 ? (profit / totalInv * 100) : 0;
+
+    const summary = [
+      ['Go Bolig - Flip-rapport', '', date],
+      [name],
+      [],
+      ['Post', 'Beløb'],
+      ['Købspris', data.purchase],
+      ['Købsomkostninger', data.closing],
+      ['Renovering', totalReno],
+      ['Holdeomkostninger', holdCost],
+      ['Samlet investering', totalInv],
+      [],
+      ['Salgspris', data.salePrice],
+      ['Salgsomkostninger', data.saleCosts],
+      ['Netto salgspris', netSale],
+      [],
+      ['Fortjeneste', profit],
+      ['ROI', +(roi.toFixed(1))],
+    ];
+    if (data.reno?.length > 0) {
+      summary.push([]);
+      summary.push(['Renovering - detaljer', 'Beløb']);
+      data.reno.forEach(r => { if (r.cost > 0) summary.push([r.desc || 'Post', r.cost]); });
+    }
+    const ws = XLSX.utils.aoa_to_sheet(summary);
+    ws['!cols'] = [{ wch: 25 }, { wch: 18 }, { wch: 15 }];
+    XLSX.utils.book_append_sheet(wb, ws, 'Flip-rapport');
+  }
+
+  XLSX.writeFile(wb, name.replace(/[^a-zA-Z0-9æøåÆØÅ\s-]/g, '') + ' - Go Bolig.xlsx');
+  showToast('Excel downloadet!', 'success');
+}
+
+document.getElementById('r-export-excel').addEventListener('click', () => exportExcel('r'));
+document.getElementById('f-export-excel').addEventListener('click', () => exportExcel('f'));
+
+// ── Portfolio Dashboard ──────────────────────────────────────────────
+function renderPortfolioDashboard() {
+  const props = getProperties();
+  const container = document.getElementById('portfolio-dashboard');
+  const rentals = props.filter(p => p.type === 'rental');
+  const flips = props.filter(p => p.type === 'flip');
+
+  if (props.length === 0) {
+    container.innerHTML = '';
+    return;
+  }
+
+  let totalValue = 0, totalEquity = 0, totalMonthlyCF = 0, totalMonthlyRent = 0;
+  let totalFlipProfit = 0, totalFlipInvestment = 0;
+
+  rentals.forEach(p => {
+    const m = computeRentalMetrics(p);
+    totalValue += p.purchase;
+    totalEquity += m.equity;
+    totalMonthlyCF += m.cashFlowMonth;
+    totalMonthlyRent += m.monthlyRent;
+  });
+
+  flips.forEach(p => {
+    const m = computeFlipMetrics(p);
+    totalFlipProfit += m.profit;
+    totalFlipInvestment += m.totalInvestment;
+  });
+
+  let html = '<div class="portfolio-card"><h3>Porteføljeoverblik</h3><div class="portfolio-kpis">';
+  html += `<div class="portfolio-kpi"><div class="pk-value">${props.length}</div><div class="pk-label">Ejendomme</div></div>`;
+
+  if (rentals.length > 0) {
+    html += `<div class="portfolio-kpi"><div class="pk-value">${fmt(totalValue)} kr.</div><div class="pk-label">Samlet værdi</div></div>`;
+    html += `<div class="portfolio-kpi"><div class="pk-value">${fmt(totalEquity)} kr.</div><div class="pk-label">Samlet egenkapital</div></div>`;
+    html += `<div class="portfolio-kpi"><div class="pk-value" style="color:${totalMonthlyCF >= 0 ? 'var(--green)' : 'var(--red)'}">${fmtSigned(totalMonthlyCF)} kr.</div><div class="pk-label">Mdl. cash flow</div></div>`;
+    html += `<div class="portfolio-kpi"><div class="pk-value">${fmt(totalMonthlyRent)} kr.</div><div class="pk-label">Mdl. husleje</div></div>`;
+  }
+
+  if (flips.length > 0) {
+    html += `<div class="portfolio-kpi"><div class="pk-value" style="color:${totalFlipProfit >= 0 ? 'var(--green)' : 'var(--red)'}">${fmtSigned(totalFlipProfit)} kr.</div><div class="pk-label">Samlet flip-profit</div></div>`;
+    if (totalFlipInvestment > 0) {
+      const avgRoi = (totalFlipProfit / totalFlipInvestment * 100);
+      html += `<div class="portfolio-kpi"><div class="pk-value">${avgRoi.toFixed(1)}%</div><div class="pk-label">Gns. flip ROI</div></div>`;
+    }
+  }
+
+  html += '</div></div>';
+  container.innerHTML = html;
+}
 
 // ── Keyboard Shortcuts ───────────────────────────────────────────────
 document.addEventListener('keydown', (e) => {
