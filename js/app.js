@@ -19,19 +19,6 @@ function cls(n) {
   return n >= 0 ? 'positive' : 'negative';
 }
 
-// ── Dark Mode ───────────────────────────────────────────────────────
-function initTheme() {
-  const saved = localStorage.getItem('gobolig_theme');
-  if (saved === 'dark') document.documentElement.dataset.theme = 'dark';
-}
-initTheme();
-
-document.getElementById('theme-toggle').addEventListener('click', () => {
-  const isDark = document.documentElement.dataset.theme === 'dark';
-  document.documentElement.dataset.theme = isDark ? '' : 'dark';
-  localStorage.setItem('gobolig_theme', isDark ? 'light' : 'dark');
-});
-
 // ── Toast Notifications ─────────────────────────────────────────────
 function showToast(message, type = 'info', duration = 3000) {
   const container = document.getElementById('toast-container');
@@ -87,12 +74,7 @@ let rentalProjectionChart = null;
 let flipWaterfallChart = null;
 
 function getChartColors() {
-  const isDark = document.documentElement.dataset.theme === 'dark';
-  return {
-    text: isDark ? '#c9d1d9' : '#4a5568',
-    grid: isDark ? '#30363d' : '#e2e8f0',
-    bg: isDark ? '#161b22' : '#fff',
-  };
+  return { text: '#4a5568', grid: '#e2e8f0' };
 }
 
 // ── Rental Units ─────────────────────────────────────────────────────
