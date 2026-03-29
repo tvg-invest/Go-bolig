@@ -19,6 +19,19 @@ function cls(n) {
   return n >= 0 ? 'positive' : 'negative';
 }
 
+// ── Dark Mode ───────────────────────────────────────────────────────
+function initTheme() {
+  const saved = localStorage.getItem('gobolig_theme');
+  if (saved === 'dark') document.documentElement.dataset.theme = 'dark';
+}
+initTheme();
+
+document.getElementById('theme-toggle').addEventListener('click', () => {
+  const isDark = document.documentElement.dataset.theme === 'dark';
+  document.documentElement.dataset.theme = isDark ? '' : 'dark';
+  localStorage.setItem('gobolig_theme', isDark ? 'light' : 'dark');
+});
+
 // ── Toast Notifications ─────────────────────────────────────────────
 function showToast(message, type = 'info', duration = 3000) {
   const container = document.getElementById('toast-container');
@@ -58,6 +71,28 @@ function calcMonthlyPayment(principal, annualRate, years, interestOnly) {
   const n = years * 12;
   if (!n) return 0;
   return principal * (r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
+}
+
+function remainingBalance(principal, annualRate, years, monthsPaid) {
+  if (!principal || !annualRate || !years) return principal;
+  const r = annualRate / 100 / 12;
+  const n = years * 12;
+  const pmt = principal * (r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
+  return principal * Math.pow(1 + r, monthsPaid) - pmt * ((Math.pow(1 + r, monthsPaid) - 1) / r);
+}
+
+// ── Chart Instances (avoid leaks) ───────────────────────────────────
+let rentalExpenseChart = null;
+let rentalProjectionChart = null;
+let flipWaterfallChart = null;
+
+function getChartColors() {
+  const isDark = document.documentElement.dataset.theme === 'dark';
+  return {
+    text: isDark ? '#c9d1d9' : '#4a5568',
+    grid: isDark ? '#30363d' : '#e2e8f0',
+    bg: isDark ? '#161b22' : '#fff',
+  };
 }
 
 // ── Rental Units ─────────────────────────────────────────────────────
@@ -219,10 +254,18 @@ function calcRental() {
   const closingCosts = num('r-closing');
   const totalInvestment = purchasePrice + closingCosts + totalReno;
   const equity = totalInvestment - loanAmt;
+  const size = num('r-size');
 
   const grossYield = purchasePrice > 0 ? (annualGrossIncome / purchasePrice) * 100 : 0;
   const netYield = purchasePrice > 0 ? ((annualNetIncome - annualOpex) / purchasePrice) * 100 : 0;
   const cashOnCash = equity > 0 ? (annualCashFlow / equity) * 100 : 0;
+
+  // Bank metrics
+  const noi = annualNetIncome - annualOpex;
+  const dscr = annualPayment > 0 ? noi / annualPayment : 0;
+  const capRate = purchasePrice > 0 ? (noi / purchasePrice) * 100 : 0;
+  const breakEvenOccupancy = annualGrossIncome > 0 ? ((annualOpex + annualPayment) / annualGrossIncome) * 100 : 0;
+  const pricePerSqm = (purchasePrice > 0 && size > 0) ? purchasePrice / size : 0;
 
   // Nothing to show yet
   if (monthlyGrossIncome === 0 && purchasePrice === 0 && monthlyPayment === 0) {
@@ -236,28 +279,21 @@ function calcRental() {
 
   // KPI Summary
   html += '<div class="kpi-grid">';
-  html += `<div class="kpi-tile ${monthlyCashFlow >= 0 ? 'kpi-positive' : 'kpi-negative'}">
-    <div class="kpi-value">${fmtSigned(monthlyCashFlow)} kr.</div>
-    <div class="kpi-label">Mdl. cash flow</div>
-  </div>`;
-  if (grossYield > 0) {
-    html += `<div class="kpi-tile">
-      <div class="kpi-value">${grossYield.toFixed(1)}%</div>
-      <div class="kpi-label">Bruttoafkast</div>
-    </div>`;
+  html += kpiTile(fmtSigned(monthlyCashFlow) + ' kr.', 'Mdl. cash flow', monthlyCashFlow);
+  if (grossYield > 0) html += kpiTile(grossYield.toFixed(1) + '%', 'Bruttoafkast');
+  if (capRate > 0) html += kpiTile(capRate.toFixed(1) + '%', 'Cap Rate');
+  if (dscr > 0) {
+    const dscrClass = dscr >= 1.25 ? 'kpi-positive' : dscr >= 1.0 ? 'kpi-warn' : 'kpi-negative';
+    html += `<div class="kpi-tile ${dscrClass}"><div class="kpi-value">${dscr.toFixed(2)}</div><div class="kpi-label">DSCR</div></div>`;
   }
-  if (netYield > 0) {
-    html += `<div class="kpi-tile">
-      <div class="kpi-value">${netYield.toFixed(1)}%</div>
-      <div class="kpi-label">Nettoafkast</div>
-    </div>`;
-  }
-  if (equity > 0) {
-    html += `<div class="kpi-tile ${cashOnCash >= 0 ? 'kpi-positive' : 'kpi-negative'}">
-      <div class="kpi-value">${cashOnCash.toFixed(1)}%</div>
-      <div class="kpi-label">Cash-on-cash</div>
-    </div>`;
-  }
+  if (equity > 0) html += kpiTile(cashOnCash.toFixed(1) + '%', 'Cash-on-cash', cashOnCash);
+  if (pricePerSqm > 0) html += kpiTile(fmt(pricePerSqm) + ' kr.', 'Pris/m²');
+  html += '</div>';
+
+  // Charts
+  html += '<div class="chart-row">';
+  html += '<div class="chart-wrap"><canvas id="r-expense-canvas"></canvas></div>';
+  html += '<div class="chart-wrap"><canvas id="r-cashflow-canvas"></canvas></div>';
   html += '</div>';
 
   // Income section
@@ -324,18 +360,203 @@ function calcRental() {
     html += '<hr class="result-divider">';
     html += `<div class="result-row"><span class="label">Bruttoafkast</span><span class="value">${grossYield.toFixed(1)}%</span></div>`;
     html += `<div class="result-row"><span class="label">Nettoafkast (før finans.)</span><span class="value">${netYield.toFixed(1)}%</span></div>`;
+    if (capRate > 0) html += `<div class="result-row"><span class="label">Cap Rate (NOI/pris)</span><span class="value">${capRate.toFixed(1)}%</span></div>`;
     if (equity > 0) {
       html += `<div class="result-row"><span class="label">Cash-on-cash afkast</span><span class="value ${cls(cashOnCash)}">${cashOnCash.toFixed(1)}%</span></div>`;
     }
+    if (dscr > 0) {
+      html += `<div class="result-row"><span class="label">DSCR (gældsdækning)</span><span class="value ${dscr >= 1.0 ? 'positive' : 'negative'}">${dscr.toFixed(2)}</span></div>`;
+    }
+    if (breakEvenOccupancy > 0 && breakEvenOccupancy <= 100) {
+      html += `<div class="result-row"><span class="label">Break-even udlejning</span><span class="value">${breakEvenOccupancy.toFixed(0)}%</span></div>`;
+    }
+    if (pricePerSqm > 0) html += `<div class="result-row"><span class="label">Pris pr. m²</span><span class="value">${fmt(pricePerSqm)} kr.</span></div>`;
   }
   html += '</div>';
 
-  // Sensitivity analysis - rent vs interest rate
+  // Sensitivity analysis
   if (monthlyGrossIncome > 0 && purchasePrice > 0) {
     html += buildRentalSensitivity(purchasePrice, loanPct, term, interestOnly, monthlyGrossIncome, vacancyPct, annualOpex, rate);
   }
 
+  // 10-year projection
+  if (purchasePrice > 0 && monthlyGrossIncome > 0) {
+    const rentIncrease = num('r-rent-increase') || 0;
+    const appreciation = num('r-appreciation') || 0;
+    html += buildProjectionTable(purchasePrice, loanAmt, rate, term, interestOnly, annualNetIncome, annualOpex, annualPayment, rentIncrease, appreciation, totalReno + closingCosts);
+    html += '<div class="chart-wrap"><canvas id="r-projection-canvas"></canvas></div>';
+  }
+
   document.getElementById('r-results').innerHTML = html;
+
+  // Render charts after DOM update
+  renderRentalCharts(annualPayment, tax, insurance, maintenance, admin, annualUtilities, other, annualNetIncome, annualTotalExpenses, purchasePrice, loanAmt, rate, term, interestOnly, annualOpex, monthlyGrossIncome, vacancyPct);
+
+  // Animate KPIs
+  document.querySelectorAll('#r-results .kpi-tile').forEach(t => {
+    t.classList.add('updating');
+    t.addEventListener('animationend', () => t.classList.remove('updating'), { once: true });
+  });
+
+  // Auto-save draft
+  saveDraft('rental');
+}
+
+function kpiTile(value, label, colorVal) {
+  let colorClass = '';
+  if (colorVal !== undefined) colorClass = colorVal >= 0 ? 'kpi-positive' : 'kpi-negative';
+  return `<div class="kpi-tile ${colorClass}"><div class="kpi-value">${value}</div><div class="kpi-label">${label}</div></div>`;
+}
+
+// ── Rental Charts ────────────────────────────────────────────────────
+function renderRentalCharts(annualPayment, tax, insurance, maintenance, admin, annualUtilities, other, annualNetIncome, annualTotalExpenses, purchasePrice, loanAmt, rate, term, interestOnly, annualOpex, monthlyGrossIncome, vacancyPct) {
+  const c = getChartColors();
+
+  // Expense doughnut
+  const expCanvas = document.getElementById('r-expense-canvas');
+  if (expCanvas && annualTotalExpenses > 0) {
+    if (rentalExpenseChart) rentalExpenseChart.destroy();
+    const labels = [];
+    const data = [];
+    if (annualPayment > 0) { labels.push('Ydelse'); data.push(annualPayment); }
+    if (tax > 0) { labels.push('Skat'); data.push(tax); }
+    if (insurance > 0) { labels.push('Forsikring'); data.push(insurance); }
+    if (maintenance > 0) { labels.push('Vedligehold'); data.push(maintenance); }
+    if (admin > 0) { labels.push('Admin'); data.push(admin); }
+    if (annualUtilities > 0) { labels.push('Forsyning'); data.push(annualUtilities); }
+    if (other > 0) { labels.push('Andet'); data.push(other); }
+
+    rentalExpenseChart = new Chart(expCanvas, {
+      type: 'doughnut',
+      data: {
+        labels,
+        datasets: [{
+          data,
+          backgroundColor: ['#3182ce','#e53e3e','#dd6b20','#38a169','#805ad5','#d69e2e','#718096'],
+          borderWidth: 0
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'bottom', labels: { boxWidth: 10, padding: 8, font: { size: 10 }, color: c.text } },
+          title: { display: true, text: 'Udgiftsfordeling', color: c.text, font: { size: 12 } }
+        }
+      }
+    });
+  }
+
+  // Cash flow bar
+  const cfCanvas = document.getElementById('r-cashflow-canvas');
+  if (cfCanvas && (annualNetIncome > 0 || annualTotalExpenses > 0)) {
+    if (rentalProjectionChart) rentalProjectionChart.destroy();
+    rentalProjectionChart = new Chart(cfCanvas, {
+      type: 'bar',
+      data: {
+        labels: ['Indtægt', 'Udgifter', 'Cash flow'],
+        datasets: [{
+          data: [annualNetIncome, -annualTotalExpenses, annualNetIncome - annualTotalExpenses],
+          backgroundColor: ['#38a169', '#e53e3e', annualNetIncome - annualTotalExpenses >= 0 ? '#3182ce' : '#e53e3e'],
+          borderRadius: 4,
+          borderWidth: 0
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          title: { display: true, text: 'Årligt overblik (kr.)', color: c.text, font: { size: 12 } }
+        },
+        scales: {
+          y: { ticks: { color: c.text, callback: v => fmt(v) }, grid: { color: c.grid } },
+          x: { ticks: { color: c.text }, grid: { display: false } }
+        }
+      }
+    });
+  }
+
+  // 10-year projection line chart
+  const projCanvas = document.getElementById('r-projection-canvas');
+  if (projCanvas) {
+    const rentIncrease = num('r-rent-increase') || 0;
+    const appreciation = num('r-appreciation') || 0;
+    const years = 10;
+    const cfData = [];
+    const eqData = [];
+    const lbls = [];
+    let curRent = monthlyGrossIncome * 12;
+    for (let y = 1; y <= years; y++) {
+      curRent *= (1 + rentIncrease / 100);
+      const netInc = curRent * (1 - (vacancyPct || 0) / 100);
+      const cf = netInc - annualOpex - (calcMonthlyPayment(loanAmt, rate, term, interestOnly) * 12);
+      const propVal = purchasePrice * Math.pow(1 + appreciation / 100, y);
+      const remLoan = interestOnly ? loanAmt : Math.max(0, remainingBalance(loanAmt, rate, term, y * 12));
+      const eq = propVal - remLoan;
+      cfData.push(Math.round(cf));
+      eqData.push(Math.round(eq));
+      lbls.push('År ' + y);
+    }
+
+    if (flipWaterfallChart) flipWaterfallChart.destroy();
+    flipWaterfallChart = new Chart(projCanvas, {
+      type: 'line',
+      data: {
+        labels: lbls,
+        datasets: [
+          { label: 'Cash flow', data: cfData, borderColor: '#3182ce', backgroundColor: 'rgba(49,130,206,.1)', fill: true, tension: 0.3, pointRadius: 3 },
+          { label: 'Egenkapital', data: eqData, borderColor: '#38a169', backgroundColor: 'rgba(56,161,105,.1)', fill: true, tension: 0.3, pointRadius: 3, yAxisID: 'y1' }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { labels: { boxWidth: 10, padding: 8, font: { size: 10 }, color: c.text } },
+          title: { display: true, text: '10-års projektion', color: c.text, font: { size: 12 } }
+        },
+        scales: {
+          y: { title: { display: true, text: 'Cash flow (kr.)', color: c.text, font: { size: 10 } }, ticks: { color: c.text, callback: v => fmt(v) }, grid: { color: c.grid } },
+          y1: { position: 'right', title: { display: true, text: 'Egenkapital (kr.)', color: c.text, font: { size: 10 } }, ticks: { color: c.text, callback: v => fmt(v) }, grid: { display: false } },
+          x: { ticks: { color: c.text }, grid: { display: false } }
+        }
+      }
+    });
+  }
+}
+
+// ── 10-Year Projection Table ─────────────────────────────────────────
+function buildProjectionTable(purchasePrice, loanAmt, rate, term, interestOnly, annualNetIncome, annualOpex, annualPayment, rentIncreasePct, appreciationPct, extraCosts) {
+  let html = '<div class="projection-section"><h3>10-års projektion</h3><div class="projection-scroll"><table class="projection-table"><thead><tr>';
+  html += '<th>År</th><th>Ejendomsværdi</th><th>Rest lån</th><th>Egenkapital</th><th>Indtægt</th><th>Cash flow</th><th>Kumuleret CF</th>';
+  html += '</tr></thead><tbody>';
+
+  let curIncome = annualNetIncome;
+  let cumCF = 0;
+
+  for (let y = 1; y <= 10; y++) {
+    curIncome *= (1 + rentIncreasePct / 100);
+    const propVal = purchasePrice * Math.pow(1 + appreciationPct / 100, y);
+    const remLoan = interestOnly ? loanAmt : Math.max(0, remainingBalance(loanAmt, rate, term, y * 12));
+    const eq = propVal - remLoan;
+    const cf = curIncome - annualOpex - annualPayment;
+    cumCF += cf;
+
+    html += `<tr>
+      <td>${y}</td>
+      <td>${fmt(propVal)}</td>
+      <td>${fmt(remLoan)}</td>
+      <td class="${cls(eq)}">${fmt(eq)}</td>
+      <td>${fmt(curIncome)}</td>
+      <td class="${cls(cf)}">${fmtSigned(cf)}</td>
+      <td class="${cls(cumCF)}">${fmtSigned(cumCF)}</td>
+    </tr>`;
+  }
+
+  html += '</tbody></table></div></div>';
+  return html;
 }
 
 // ── Rental Sensitivity Table ─────────────────────────────────────────
@@ -347,8 +568,7 @@ function buildRentalSensitivity(purchasePrice, loanPct, term, interestOnly, mont
   html += '<table class="sensitivity-table"><thead><tr><th>Rente \\ Husleje</th>';
 
   rentSteps.forEach(rs => {
-    const r = monthlyRent + rs;
-    html += `<th>${fmt(r)} kr.</th>`;
+    html += `<th>${fmt(monthlyRent + rs)} kr.</th>`;
   });
   html += '</tr></thead><tbody>';
 
@@ -388,7 +608,6 @@ function calcFlip() {
   const salePrice = num('f-sale-price');
   const saleCosts = num('f-sale-costs');
 
-  // Renovation
   let totalReno = 0;
   const renoItems = [];
   document.querySelectorAll('#f-reno-list .row-item').forEach(row => {
@@ -414,32 +633,17 @@ function calcFlip() {
 
   // KPI Summary
   html += '<div class="kpi-grid">';
-  html += `<div class="kpi-tile ${profit >= 0 ? 'kpi-positive' : 'kpi-negative'}">
-    <div class="kpi-value">${fmtSigned(profit)} kr.</div>
-    <div class="kpi-label">Fortjeneste</div>
-  </div>`;
-  if (totalInvestment > 0) {
-    html += `<div class="kpi-tile ${roi >= 0 ? 'kpi-positive' : 'kpi-negative'}">
-      <div class="kpi-value">${roi.toFixed(1)}%</div>
-      <div class="kpi-label">ROI</div>
-    </div>`;
-  }
+  html += kpiTile(fmtSigned(profit) + ' kr.', 'Fortjeneste', profit);
+  if (totalInvestment > 0) html += kpiTile(roi.toFixed(1) + '%', 'ROI', roi);
   if (holdMonths > 0 && totalInvestment > 0) {
     const annualizedRoi = (Math.pow(1 + profit / totalInvestment, 12 / holdMonths) - 1) * 100;
-    if (isFinite(annualizedRoi)) {
-      html += `<div class="kpi-tile ${annualizedRoi >= 0 ? 'kpi-positive' : 'kpi-negative'}">
-        <div class="kpi-value">${annualizedRoi.toFixed(1)}%</div>
-        <div class="kpi-label">Annualiseret ROI</div>
-      </div>`;
-    }
+    if (isFinite(annualizedRoi)) html += kpiTile(annualizedRoi.toFixed(1) + '%', 'Annualiseret ROI', annualizedRoi);
   }
-  if (totalInvestment > 0) {
-    html += `<div class="kpi-tile">
-      <div class="kpi-value">${fmt(totalInvestment)} kr.</div>
-      <div class="kpi-label">Samlet investering</div>
-    </div>`;
-  }
+  if (totalInvestment > 0) html += kpiTile(fmt(totalInvestment) + ' kr.', 'Samlet investering');
   html += '</div>';
+
+  // Waterfall chart
+  html += '<div class="chart-wrap"><canvas id="f-waterfall-canvas"></canvas></div>';
 
   // Purchase
   html += '<div class="result-section"><h3>Investering</h3>';
@@ -498,12 +702,66 @@ function calcFlip() {
   }
   html += '</div>';
 
-  // Sensitivity - sale price vs renovation cost
+  // Sensitivity
   if (salePrice > 0 && totalInvestment > 0) {
     html += buildFlipSensitivity(purchasePrice, closingCosts, totalReno, totalHoldingCost, salePrice, saleCosts);
   }
 
   document.getElementById('f-results').innerHTML = html;
+
+  // Waterfall chart
+  renderFlipChart(purchasePrice, closingCosts, totalReno, totalHoldingCost, saleCosts, salePrice, profit);
+
+  // Animate KPIs
+  document.querySelectorAll('#f-results .kpi-tile').forEach(t => {
+    t.classList.add('updating');
+    t.addEventListener('animationend', () => t.classList.remove('updating'), { once: true });
+  });
+
+  saveDraft('flip');
+}
+
+// ── Flip Chart ───────────────────────────────────────────────────────
+let flipChart = null;
+
+function renderFlipChart(purchasePrice, closingCosts, totalReno, totalHoldingCost, saleCosts, salePrice, profit) {
+  const canvas = document.getElementById('f-waterfall-canvas');
+  if (!canvas) return;
+  if (flipChart) flipChart.destroy();
+  const c = getChartColors();
+
+  const labels = ['Købspris'];
+  const costs = [purchasePrice];
+  if (closingCosts > 0) { labels.push('Omk.'); costs.push(closingCosts); }
+  if (totalReno > 0) { labels.push('Renovering'); costs.push(totalReno); }
+  if (totalHoldingCost > 0) { labels.push('Holdeomk.'); costs.push(totalHoldingCost); }
+  if (saleCosts > 0) { labels.push('Salgsomk.'); costs.push(saleCosts); }
+  labels.push('Salgspris', 'Fortjeneste');
+
+  const totalCosts = costs.reduce((s, c) => s + c, 0);
+  const allData = [...costs, salePrice, profit];
+  const colors = costs.map(() => '#e53e3e');
+  colors.push('#38a169', profit >= 0 ? '#3182ce' : '#e53e3e');
+
+  flipChart = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{ data: allData, backgroundColor: colors, borderRadius: 4, borderWidth: 0 }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        title: { display: true, text: 'Flip-overblik (kr.)', color: c.text, font: { size: 12 } }
+      },
+      scales: {
+        y: { ticks: { color: c.text, callback: v => fmt(v) }, grid: { color: c.grid } },
+        x: { ticks: { color: c.text, font: { size: 10 } }, grid: { display: false } }
+      }
+    }
+  });
 }
 
 // ── Flip Sensitivity Table ───────────────────────────────────────────
@@ -543,7 +801,9 @@ function buildFlipSensitivity(purchasePrice, closingCosts, totalReno, totalHoldi
 // ── Real-time updates ────────────────────────────────────────────────
 ['r-purchase', 'r-closing', 'r-loan-pct', 'r-rate', 'r-term',
  'r-payment-override', 'r-tax', 'r-insurance', 'r-maintenance',
- 'r-admin', 'r-utilities', 'r-other', 'r-vacancy'].forEach(id => {
+ 'r-admin', 'r-utilities', 'r-other', 'r-vacancy',
+ 'r-size', 'r-rooms', 'r-year-built',
+ 'r-rent-increase', 'r-appreciation'].forEach(id => {
   document.getElementById(id)?.addEventListener('input', calcRental);
 });
 document.getElementById('r-interest-only')?.addEventListener('change', calcRental);
@@ -553,6 +813,50 @@ document.getElementById('r-interest-only')?.addEventListener('change', calcRenta
  'f-sale-price', 'f-sale-costs'].forEach(id => {
   document.getElementById(id)?.addEventListener('input', calcFlip);
 });
+
+// ── Auto-save Draft ──────────────────────────────────────────────────
+let draftTimer = null;
+
+function saveDraft(type) {
+  clearTimeout(draftTimer);
+  draftTimer = setTimeout(() => {
+    if (type === 'rental') {
+      localStorage.setItem('gobolig_draft_rental', JSON.stringify(gatherRentalData()));
+    } else {
+      localStorage.setItem('gobolig_draft_flip', JSON.stringify(gatherFlipData()));
+    }
+  }, 500);
+}
+
+function restoreDrafts() {
+  const rentalDraft = localStorage.getItem('gobolig_draft_rental');
+  const flipDraft = localStorage.getItem('gobolig_draft_flip');
+  let restored = false;
+
+  if (rentalDraft) {
+    try {
+      const data = JSON.parse(rentalDraft);
+      if (data.name || data.purchase || (data.units && data.units.some(u => u.rent > 0))) {
+        loadRentalData(data);
+        restored = true;
+      }
+    } catch (e) {}
+  }
+
+  if (flipDraft) {
+    try {
+      const data = JSON.parse(flipDraft);
+      if (data.name || data.purchase || data.salePrice) {
+        loadFlipData(data);
+        restored = true;
+      }
+    } catch (e) {}
+  }
+
+  if (restored) {
+    showToast('Kladde genindlæst.', 'info');
+  }
+}
 
 // ── Save / Load / Delete ─────────────────────────────────────────────
 function getProperties() {
@@ -585,6 +889,9 @@ function gatherRentalData() {
     name: document.getElementById('r-name').value,
     purchase: num('r-purchase'),
     closing: num('r-closing'),
+    size: num('r-size'),
+    rooms: num('r-rooms'),
+    yearBuilt: num('r-year-built'),
     loanPct: num('r-loan-pct'),
     rate: num('r-rate'),
     term: num('r-term'),
@@ -598,6 +905,8 @@ function gatherRentalData() {
     utilities: num('r-utilities'),
     other: num('r-other'),
     vacancy: num('r-vacancy'),
+    rentIncrease: num('r-rent-increase'),
+    appreciation: num('r-appreciation'),
     reno
   };
 }
@@ -631,6 +940,9 @@ function loadRentalData(data) {
   document.getElementById('r-name').value = data.name || '';
   document.getElementById('r-purchase').value = data.purchase || '';
   document.getElementById('r-closing').value = data.closing || '';
+  document.getElementById('r-size').value = data.size || '';
+  document.getElementById('r-rooms').value = data.rooms || '';
+  document.getElementById('r-year-built').value = data.yearBuilt || '';
   document.getElementById('r-loan-pct').value = data.loanPct ?? 80;
   document.getElementById('r-rate').value = data.rate ?? 4;
   document.getElementById('r-term').value = data.term ?? 30;
@@ -643,6 +955,8 @@ function loadRentalData(data) {
   document.getElementById('r-utilities').value = data.utilities || '';
   document.getElementById('r-other').value = data.other || '';
   document.getElementById('r-vacancy').value = data.vacancy || '';
+  document.getElementById('r-rent-increase').value = data.rentIncrease ?? 2;
+  document.getElementById('r-appreciation').value = data.appreciation ?? 2;
 
   document.getElementById('r-units-list').innerHTML = '';
   (data.units || []).forEach(u => addRentalUnit(u.name, u.rent));
@@ -702,6 +1016,7 @@ document.getElementById('r-reset').addEventListener('click', () => {
   document.getElementById('r-units-list').innerHTML = '';
   document.getElementById('r-reno-list').innerHTML = '';
   document.getElementById('r-property-image').innerHTML = '';
+  localStorage.removeItem('gobolig_draft_rental');
   calcRental();
   showToast('Felter nulstillet.', 'info');
 });
@@ -711,6 +1026,7 @@ document.getElementById('f-reset').addEventListener('click', () => {
   document.querySelectorAll('#flip input[type="number"], #flip input[type="text"]').forEach(el => el.value = '');
   document.getElementById('f-reno-list').innerHTML = '';
   document.getElementById('f-property-image').innerHTML = '';
+  localStorage.removeItem('gobolig_draft_flip');
   calcFlip();
   showToast('Felter nulstillet.', 'info');
 });
@@ -895,6 +1211,9 @@ function previewRow(label, value, fullWidth) {
 function applyRentalData(d) {
   if (d.address) document.getElementById('r-name').value = d.address;
   if (d.price) document.getElementById('r-purchase').value = d.price;
+  if (d.size) document.getElementById('r-size').value = d.size;
+  if (d.rooms) document.getElementById('r-rooms').value = d.rooms;
+  if (d.yearBuilt) document.getElementById('r-year-built').value = d.yearBuilt;
   calcRental();
 }
 
@@ -926,6 +1245,16 @@ document.getElementById('f-fetch').addEventListener('click', () => {
   });
 });
 
+// ── Keyboard Shortcuts ───────────────────────────────────────────────
+document.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+    e.preventDefault();
+    const activeTab = document.querySelector('.tab-content.active');
+    if (activeTab?.id === 'rental') document.getElementById('r-save').click();
+    else if (activeTab?.id === 'flip') document.getElementById('f-save').click();
+  }
+});
+
 // ── Print Preparation ────────────────────────────────────────────────
 window.addEventListener('beforeprint', () => {
   const activeTab = document.querySelector('.tab-content.active');
@@ -937,3 +1266,4 @@ window.addEventListener('beforeprint', () => {
 
 // ── Init ─────────────────────────────────────────────────────────────
 addRentalUnit('', '');
+restoreDrafts();

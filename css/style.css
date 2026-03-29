@@ -23,6 +23,38 @@
   --radius: 8px;
   --shadow: 0 1px 3px rgba(0,0,0,.1), 0 1px 2px rgba(0,0,0,.06);
   --shadow-md: 0 4px 6px rgba(0,0,0,.07), 0 2px 4px rgba(0,0,0,.06);
+  --card-bg: #fff;
+  --body-bg: var(--gray-50);
+  --input-bg: #fff;
+  --header-gradient: linear-gradient(135deg, #1a365d 0%, #1e3a5f 50%, #2a4a7f 100%);
+}
+
+/* ===== Dark Mode ===== */
+[data-theme="dark"] {
+  --primary: #90cdf4;
+  --primary-light: #63b3ed;
+  --accent: #63b3ed;
+  --green: #68d391;
+  --green-bg: rgba(104,211,145,.12);
+  --red: #fc8181;
+  --red-bg: rgba(252,129,129,.12);
+  --orange: #f6ad55;
+  --orange-bg: rgba(246,173,85,.12);
+  --gray-50: #0d1117;
+  --gray-100: #161b22;
+  --gray-200: #21262d;
+  --gray-300: #30363d;
+  --gray-400: #484f58;
+  --gray-500: #8b949e;
+  --gray-600: #b1bac4;
+  --gray-700: #c9d1d9;
+  --gray-800: #e6edf3;
+  --shadow: 0 1px 3px rgba(0,0,0,.3), 0 1px 2px rgba(0,0,0,.2);
+  --shadow-md: 0 4px 6px rgba(0,0,0,.3), 0 2px 4px rgba(0,0,0,.2);
+  --card-bg: #161b22;
+  --body-bg: #0d1117;
+  --input-bg: #0d1117;
+  --header-gradient: linear-gradient(135deg, #0d1117 0%, #161b22 50%, #21262d 100%);
 }
 
 html { font-size: 15px; }
@@ -30,14 +62,15 @@ html { font-size: 15px; }
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   color: var(--gray-800);
-  background: var(--gray-50);
+  background: var(--body-bg);
   line-height: 1.5;
   min-height: 100vh;
+  transition: background .3s, color .3s;
 }
 
 /* ===== Header ===== */
 header {
-  background: linear-gradient(135deg, var(--primary) 0%, #1e3a5f 50%, var(--primary-light) 100%);
+  background: var(--header-gradient);
   color: #fff;
   padding: 1rem 1.5rem;
 }
@@ -84,9 +117,32 @@ header h1 {
   font-weight: 400;
 }
 
+/* ===== Theme Toggle ===== */
+.theme-toggle {
+  background: rgba(255,255,255,.12);
+  border: 1px solid rgba(255,255,255,.2);
+  border-radius: 8px;
+  color: #fff;
+  width: 2.4rem;
+  height: 2.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  margin-left: auto;
+  transition: background .2s;
+}
+
+.theme-toggle:hover { background: rgba(255,255,255,.22); }
+
+.theme-toggle .icon-moon { display: none; }
+
+[data-theme="dark"] .theme-toggle .icon-sun { display: none; }
+[data-theme="dark"] .theme-toggle .icon-moon { display: block; }
+
 /* ===== Nav ===== */
 nav {
-  background: #fff;
+  background: var(--card-bg);
   border-bottom: 1px solid var(--gray-200);
   display: flex;
   gap: 0;
@@ -143,7 +199,7 @@ main {
 
 /* ===== Cards ===== */
 .card {
-  background: #fff;
+  background: var(--card-bg);
   border: 1px solid var(--gray-200);
   border-radius: var(--radius);
   padding: 1.25rem 1.5rem;
@@ -272,7 +328,7 @@ main {
   padding: 0.5rem 0.65rem;
   font-size: 0.92rem;
   color: var(--gray-800);
-  background: #fff;
+  background: var(--input-bg);
   transition: border-color .15s, box-shadow .15s;
   width: 100%;
   font-family: inherit;
@@ -406,7 +462,7 @@ main {
 .btn-save:hover { background: var(--primary-light); }
 
 .btn-reset {
-  background: #fff;
+  background: var(--card-bg);
   color: var(--gray-600);
   border: 1px solid var(--gray-300);
   border-radius: 6px;
@@ -423,7 +479,11 @@ main {
 /* ===== URL Import Bar ===== */
 .url-card {
   border-color: var(--accent);
-  background: linear-gradient(135deg, #f7fafc 0%, #ebf8ff 100%);
+  background: linear-gradient(135deg, var(--gray-50) 0%, var(--card-bg) 100%);
+}
+
+[data-theme="dark"] .url-card {
+  background: linear-gradient(135deg, #161b22 0%, #1c2333 100%);
 }
 
 .url-row {
@@ -448,7 +508,7 @@ main {
   padding: 0.55rem 0.75rem;
   font-size: 0.92rem;
   color: var(--gray-800);
-  background: #fff;
+  background: var(--input-bg);
   transition: border-color .15s;
   font-family: inherit;
 }
@@ -513,7 +573,7 @@ main {
 .url-info:empty { display: none; }
 
 .property-preview {
-  background: #fff;
+  background: var(--card-bg);
   border: 1px solid var(--gray-200);
   border-radius: 6px;
   padding: 0.75rem 1rem;
@@ -708,7 +768,7 @@ main {
 }
 
 .saved-card {
-  background: #fff;
+  background: var(--card-bg);
   border: 1px solid var(--gray-200);
   border-radius: var(--radius);
   padding: 1rem 1.25rem;
@@ -771,7 +831,7 @@ main {
 .btn-load:hover { background: var(--primary-light); }
 
 .btn-delete {
-  background: #fff;
+  background: var(--card-bg);
   color: var(--red);
 }
 
@@ -843,6 +903,90 @@ main {
 @keyframes toastOut {
   from { opacity: 1; transform: translateY(0) scale(1); }
   to { opacity: 0; transform: translateY(0.5rem) scale(0.95); }
+}
+
+/* ===== Chart Container ===== */
+.chart-wrap {
+  margin: 1rem 0;
+  position: relative;
+}
+
+.chart-wrap canvas {
+  max-height: 220px;
+  width: 100% !important;
+}
+
+.chart-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+
+.chart-row .chart-wrap canvas {
+  max-height: 200px;
+}
+
+/* ===== Projection Table ===== */
+.projection-section {
+  margin-top: 1.25rem;
+}
+
+.projection-section h3 {
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--gray-500);
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid var(--gray-100);
+}
+
+.projection-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.projection-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.projection-table th,
+.projection-table td {
+  padding: 0.35rem 0.6rem;
+  text-align: right;
+  border: 1px solid var(--gray-200);
+}
+
+.projection-table th {
+  background: var(--gray-100);
+  font-weight: 600;
+  color: var(--gray-600);
+  font-size: 0.72rem;
+  text-align: center;
+}
+
+.projection-table td:first-child {
+  text-align: center;
+  font-weight: 600;
+}
+
+.projection-table .positive { color: var(--green); }
+.projection-table .negative { color: var(--red); }
+
+/* ===== KPI Animation ===== */
+@keyframes kpiPulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.04); }
+  100% { transform: scale(1); }
+}
+
+.kpi-tile.updating {
+  animation: kpiPulse .35s ease;
 }
 
 /* ===== Print Header ===== */
