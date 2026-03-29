@@ -98,6 +98,7 @@ function addRentalReno(desc, cost) {
     row.remove();
     calcRental();
   });
+  row.querySelector('.reno-desc').addEventListener('input', calcRental);
   row.querySelector('.reno-cost').addEventListener('input', calcRental);
   calcRental();
 }
@@ -129,6 +130,7 @@ function addFlipReno(desc, cost) {
     row.remove();
     calcFlip();
   });
+  row.querySelector('.reno-desc').addEventListener('input', calcFlip);
   row.querySelector('.reno-cost').addEventListener('input', calcFlip);
   calcFlip();
 }
