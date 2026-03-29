@@ -11,7 +11,12 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@sparticuz/chromium": "^143.0.4",
     "cheerio": "^1.2.0",
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "puppeteer-core": "^24.40.0"
+  },
+  "devDependencies": {
+    "puppeteer": "^24.40.0"
   }
 }

@@ -1,5 +1,11 @@
 {
   "framework": null,
   "buildCommand": "",
-  "outputDirectory": "."
+  "outputDirectory": ".",
+  "functions": {
+    "api/fetch-property.js": {
+      "memory": 1024,
+      "maxDuration": 30
+    }
+  }
 }
