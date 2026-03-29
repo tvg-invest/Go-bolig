@@ -19,102 +19,6 @@ function cls(n) {
   return n >= 0 ? 'positive' : 'negative';
 }
 
-// ── Deal Score ──────────────────────────────────────────────────────
-function computeRentalDealScore(dscr, capRate, cashOnCash, breakEvenOcc, grossYield) {
-  function linear(val, min, max) { return Math.max(0, Math.min(100, ((val - min) / (max - min)) * 100)); }
-  const dscrScore = linear(dscr, 0.8, 1.5);
-  const capScore = linear(capRate, 2, 8);
-  const cocScore = linear(cashOnCash, 0, 15);
-  const beScore = 100 - linear(breakEvenOcc, 60, 100);
-  const gyScore = linear(grossYield, 3, 10);
-  return Math.round(dscrScore * 0.25 + capScore * 0.20 + cocScore * 0.20 + beScore * 0.15 + gyScore * 0.10 + (dscr > 0 ? 10 : 0));
-}
-
-function computeFlipDealScore(roi, annualizedRoi, profitMargin, renoToPriceRatio) {
-  function linear(val, min, max) { return Math.max(0, Math.min(100, ((val - min) / (max - min)) * 100)); }
-  const roiScore = linear(roi, 0, 30);
-  const annScore = linear(annualizedRoi, 0, 50);
-  const marginScore = linear(profitMargin, 0, 25);
-  const renoScore = 100 - linear(renoToPriceRatio, 0, 50);
-  return Math.round(roiScore * 0.30 + annScore * 0.30 + marginScore * 0.20 + renoScore * 0.20);
-}
-
-function drawGauge(canvasId, score) {
-  const canvas = document.getElementById(canvasId);
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-  const dpr = window.devicePixelRatio || 1;
-  const w = 200, h = 120;
-  canvas.width = w * dpr;
-  canvas.height = h * dpr;
-  canvas.style.width = w + 'px';
-  canvas.style.height = h + 'px';
-  ctx.scale(dpr, dpr);
-
-  const cx = w / 2, cy = h - 10, r = 75;
-
-  // Background arc
-  ctx.beginPath();
-  ctx.arc(cx, cy, r, Math.PI, 0);
-  ctx.lineWidth = 16;
-  ctx.strokeStyle = '#e2e8f0';
-  ctx.lineCap = 'round';
-  ctx.stroke();
-
-  // Gradient arc
-  const gradient = ctx.createLinearGradient(cx - r, cy, cx + r, cy);
-  gradient.addColorStop(0, '#e53e3e');
-  gradient.addColorStop(0.35, '#dd6b20');
-  gradient.addColorStop(0.5, '#d69e2e');
-  gradient.addColorStop(0.75, '#38a169');
-  gradient.addColorStop(1, '#276749');
-
-  const angle = Math.PI + (score / 100) * Math.PI;
-  ctx.beginPath();
-  ctx.arc(cx, cy, r, Math.PI, Math.min(angle, Math.PI * 2));
-  ctx.lineWidth = 16;
-  ctx.strokeStyle = gradient;
-  ctx.lineCap = 'round';
-  ctx.stroke();
-
-  // Needle
-  const needleAngle = Math.PI + (score / 100) * Math.PI;
-  const nx = cx + Math.cos(needleAngle) * (r - 25);
-  const ny = cy + Math.sin(needleAngle) * (r - 25);
-  ctx.beginPath();
-  ctx.moveTo(cx, cy);
-  ctx.lineTo(nx, ny);
-  ctx.lineWidth = 3;
-  ctx.strokeStyle = '#1a202c';
-  ctx.lineCap = 'round';
-  ctx.stroke();
-
-  // Center dot
-  ctx.beginPath();
-  ctx.arc(cx, cy, 5, 0, Math.PI * 2);
-  ctx.fillStyle = '#1a202c';
-  ctx.fill();
-
-  // Score text
-  ctx.font = 'bold 28px Inter, sans-serif';
-  ctx.fillStyle = '#1a202c';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'bottom';
-  ctx.fillText(score, cx, cy - 12);
-
-  ctx.font = '500 10px Inter, sans-serif';
-  ctx.fillStyle = '#718096';
-  ctx.fillText('DEAL SCORE', cx, cy - 2);
-}
-
-function getVerdict(score) {
-  if (score >= 80) return { text: 'Fremragende investering', color: '#276749' };
-  if (score >= 60) return { text: 'God investering', color: '#38a169' };
-  if (score >= 40) return { text: 'Acceptabel', color: '#d69e2e' };
-  if (score >= 20) return { text: 'Tvivlsom - undersøg nærmere', color: '#dd6b20' };
-  return { text: 'Frarådes', color: '#e53e3e' };
-}
-
 // ── Toast Notifications ─────────────────────────────────────────────
 function showToast(message, type = 'info', duration = 3000) {
   const container = document.getElementById('toast-container');
@@ -355,11 +259,6 @@ function calcRental() {
   // ── Render ──
   let html = '';
 
-  // Deal Score
-  const dealScore = computeRentalDealScore(dscr, capRate, cashOnCash, breakEvenOccupancy, grossYield);
-  const verdict = getVerdict(dealScore);
-  html += `<div class="deal-score-wrap"><canvas id="r-gauge-canvas" width="200" height="120"></canvas><div class="deal-verdict" style="color:${verdict.color}">${verdict.text}</div></div>`;
-
   // KPI Summary
   html += '<div class="kpi-grid">';
   html += kpiTile(fmtSigned(monthlyCashFlow) + ' kr.', 'Mdl. cash flow', monthlyCashFlow);
@@ -471,9 +370,6 @@ function calcRental() {
   }
 
   document.getElementById('r-results').innerHTML = html;
-
-  // Draw deal score gauge
-  drawGauge('r-gauge-canvas', dealScore);
 
   // Render charts after DOM update
   renderRentalCharts(annualPayment, tax, insurance, maintenance, admin, annualUtilities, other, annualNetIncome, annualTotalExpenses, purchasePrice, loanAmt, rate, term, interestOnly, annualOpex, monthlyGrossIncome, vacancyPct);
@@ -717,14 +613,6 @@ function calcFlip() {
 
   let html = '';
 
-  // Deal Score for flip
-  const profitMargin = salePrice > 0 ? (profit / salePrice) * 100 : 0;
-  const renoToPriceRatio = purchasePrice > 0 ? (totalReno / purchasePrice) * 100 : 0;
-  const annRoiForScore = (holdMonths > 0 && totalInvestment > 0) ? (Math.pow(1 + profit / totalInvestment, 12 / holdMonths) - 1) * 100 : roi;
-  const flipDealScore = computeFlipDealScore(roi, isFinite(annRoiForScore) ? annRoiForScore : roi, profitMargin, renoToPriceRatio);
-  const flipVerdict = getVerdict(flipDealScore);
-  html += `<div class="deal-score-wrap"><canvas id="f-gauge-canvas" width="200" height="120"></canvas><div class="deal-verdict" style="color:${flipVerdict.color}">${flipVerdict.text}</div></div>`;
-
   // KPI Summary
   html += '<div class="kpi-grid">';
   html += kpiTile(fmtSigned(profit) + ' kr.', 'Fortjeneste', profit);
@@ -802,9 +690,6 @@ function calcFlip() {
   }
 
   document.getElementById('f-results').innerHTML = html;
-
-  // Draw deal score gauge
-  drawGauge('f-gauge-canvas', flipDealScore);
 
   // Waterfall chart
   renderFlipChart(purchasePrice, closingCosts, totalReno, totalHoldingCost, saleCosts, salePrice, profit);
