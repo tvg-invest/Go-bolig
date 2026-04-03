@@ -10,6 +10,27 @@
 </head>
 <body>
 
+<!-- Login Screen -->
+<div id="login-screen" class="login-screen">
+  <div class="login-card">
+    <span class="login-logo">GB</span>
+    <h1>Go Bolig</h1>
+    <p class="login-sub">Log ind for at fortsætte</p>
+    <form id="login-form" autocomplete="off">
+      <div class="login-field">
+        <label for="login-user">Brugernavn</label>
+        <input type="text" id="login-user" autocomplete="username" autofocus>
+      </div>
+      <div class="login-field">
+        <label for="login-pass">Adgangskode</label>
+        <input type="password" id="login-pass" autocomplete="current-password">
+      </div>
+      <div id="login-error" class="login-error"></div>
+      <button type="submit" class="login-btn">Log ind</button>
+    </form>
+  </div>
+</div>
+
 <header>
   <div class="header-inner">
     <div class="header-brand">
@@ -25,6 +46,7 @@
 <nav>
   <button class="tab-btn active" data-tab="rental">Udlejning</button>
   <button class="tab-btn" data-tab="flip">Flip</button>
+  <button class="tab-btn" data-tab="brrrr">BRRRR</button>
   <button class="tab-btn" data-tab="saved">Mine Ejendomme</button>
 </nav>
 
@@ -69,6 +91,7 @@
               <div class="field">
                 <label for="r-closing">Købsomkostninger (kr.)</label>
                 <input type="number" id="r-closing" placeholder="50.000" step="1000">
+                <button type="button" class="btn-estimate" id="r-auto-tinglysning">+ Tinglysningsafgift</button>
               </div>
               <div class="field">
                 <label for="r-size">Boligareal (m²)</label>
@@ -186,7 +209,22 @@
                 <label for="r-appreciation">Årlig værdistigning (%)</label>
                 <input type="number" id="r-appreciation" value="2" step="0.5" min="0">
               </div>
+              <div class="field">
+                <label for="r-expense-growth">Årlig udgiftsstigning (%)</label>
+                <input type="number" id="r-expense-growth" value="2" step="0.5" min="0">
+              </div>
             </div>
+          </div>
+        </div>
+
+        <!-- Lånsammenligning -->
+        <div class="card collapsible collapsed">
+          <h2 class="card-toggle">Lånsammenligning</h2>
+          <div class="card-body">
+            <p class="hint">Sammenlign op til 3 lånprodukter side om side.</p>
+            <div id="r-loan-compare-inputs"></div>
+            <button class="btn-add" id="r-add-loan-compare">+ Tilføj lånprodukt</button>
+            <div id="r-loan-compare-results"></div>
           </div>
         </div>
 
@@ -194,9 +232,95 @@
         <div class="card collapsible">
           <h2 class="card-toggle">Renovering</h2>
           <div class="card-body">
-            <p class="hint">Valgfrit - tilføj poster til renoveringsbudget.</p>
+            <div class="reno-templates">
+              <span class="hint">Hurtig-tilføj:</span>
+              <button class="btn-template" data-desc="Køkken" data-cost="80000">Køkken</button>
+              <button class="btn-template" data-desc="Badeværelse" data-cost="60000">Bad</button>
+              <button class="btn-template" data-desc="Gulve" data-cost="35000">Gulve</button>
+              <button class="btn-template" data-desc="Maling" data-cost="20000">Maling</button>
+              <button class="btn-template" data-desc="Tag" data-cost="120000">Tag</button>
+              <button class="btn-template" data-desc="VVS" data-cost="40000">VVS</button>
+              <button class="btn-template" data-desc="El-installation" data-cost="35000">El</button>
+              <button class="btn-template" data-desc="Vinduer" data-cost="60000">Vinduer</button>
+            </div>
+            <div class="ai-estimator">
+              <button class="btn-ai-estimate" id="r-ai-toggle">Estimer med AI</button>
+              <div class="ai-estimator-form" id="r-ai-form" style="display:none">
+                <div class="form-grid">
+                  <div class="field">
+                    <label for="r-ai-room">Rumtype</label>
+                    <select id="r-ai-room">
+                      <option value="badeværelse">Badeværelse</option>
+                      <option value="køkken">Køkken</option>
+                      <option value="stue">Stue</option>
+                      <option value="soveværelse">Soveværelse</option>
+                      <option value="entré">Entré/gang</option>
+                      <option value="kælder">Kælder</option>
+                      <option value="tag">Tag</option>
+                      <option value="facade">Facade</option>
+                      <option value="hel-lejlighed">Hel lejlighed</option>
+                      <option value="andet">Andet</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label for="r-ai-sqm">Areal (m²)</label>
+                    <input type="number" id="r-ai-sqm" placeholder="8" step="0.5" min="1">
+                  </div>
+                  <div class="field">
+                    <label for="r-ai-quality">Kvalitetsniveau</label>
+                    <select id="r-ai-quality">
+                      <option value="budget">Budget</option>
+                      <option value="mellem" selected>Mellem</option>
+                      <option value="høj">Høj</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="field" style="margin-top:0.5rem">
+                  <label for="r-ai-desc">Beskriv renoveringen</label>
+                  <textarea id="r-ai-desc" rows="2" placeholder="Fx: Nyt badeværelse med bruseniche, gulvvarme, fliser på alle vægge..."></textarea>
+                </div>
+                <div class="ai-estimator-actions">
+                  <button class="btn-fetch" id="r-ai-submit">Beregn estimat</button>
+                  <button class="btn-reset ai-cancel-btn" id="r-ai-cancel">Annuller</button>
+                </div>
+                <div id="r-ai-status" class="url-status"></div>
+                <div id="r-ai-preview" class="ai-preview"></div>
+              </div>
+            </div>
             <div id="r-reno-list"></div>
             <button class="btn-add" id="r-add-reno">+ Tilføj post</button>
+          </div>
+        </div>
+
+        <!-- Due Diligence -->
+        <div class="card collapsible collapsed">
+          <h2 class="card-toggle">Due Diligence</h2>
+          <div class="card-body">
+            <div class="dd-section">
+              <h4>Juridisk</h4>
+              <label class="dd-item"><input type="checkbox" class="dd-check" data-section="r"> Tingbogsattest indhentet</label>
+              <label class="dd-item"><input type="checkbox" class="dd-check" data-section="r"> Servitutter og byrder tjekket</label>
+              <label class="dd-item"><input type="checkbox" class="dd-check" data-section="r"> BBR-meddelelse gennemgået</label>
+              <label class="dd-item"><input type="checkbox" class="dd-check" data-section="r"> Ejendomsskattebillet kontrolleret</label>
+              <label class="dd-item"><input type="checkbox" class="dd-check" data-section="r"> Lejekontrakter gennemgået</label>
+            </div>
+            <div class="dd-section">
+              <h4>Teknisk</h4>
+              <label class="dd-item"><input type="checkbox" class="dd-check" data-section="r"> Tilstandsrapport / bygningsgennemgang</label>
+              <label class="dd-item"><input type="checkbox" class="dd-check" data-section="r"> El-installation vurderet</label>
+              <label class="dd-item"><input type="checkbox" class="dd-check" data-section="r"> VVS og kloak tjekket</label>
+              <label class="dd-item"><input type="checkbox" class="dd-check" data-section="r"> Tag og facade vurderet</label>
+              <label class="dd-item"><input type="checkbox" class="dd-check" data-section="r"> Energimærke indhentet</label>
+              <label class="dd-item"><input type="checkbox" class="dd-check" data-section="r"> Forureningsattest (jordforurening)</label>
+            </div>
+            <div class="dd-section">
+              <h4>Økonomi</h4>
+              <label class="dd-item"><input type="checkbox" class="dd-check" data-section="r"> Finansiering på plads</label>
+              <label class="dd-item"><input type="checkbox" class="dd-check" data-section="r"> Forsikringstilbud indhentet</label>
+              <label class="dd-item"><input type="checkbox" class="dd-check" data-section="r"> Driftsregnskab fra sælger</label>
+              <label class="dd-item"><input type="checkbox" class="dd-check" data-section="r"> Huslejeniveau markedstjekket</label>
+            </div>
+            <div class="dd-progress" id="r-dd-progress">0 af 15 udført</div>
           </div>
         </div>
 
@@ -274,22 +398,59 @@
               <div class="field">
                 <label for="f-closing">Købsomkostninger (kr.)</label>
                 <input type="number" id="f-closing" placeholder="40.000" step="1000">
+                <button type="button" class="btn-estimate" id="f-auto-tinglysning">+ Tinglysningsafgift</button>
+              </div>
+              <div class="field">
+                <label for="f-size">Boligareal (m²)</label>
+                <input type="number" id="f-size" placeholder="120" step="1">
+              </div>
+              <div class="field">
+                <label for="f-rooms">Værelser</label>
+                <input type="number" id="f-rooms" placeholder="4" step="1">
+              </div>
+              <div class="field">
+                <label for="f-year-built">Byggeår</label>
+                <input type="number" id="f-year-built" placeholder="1960" step="1">
               </div>
             </div>
           </div>
         </div>
 
         <div class="card collapsible">
-          <h2 class="card-toggle">Finansiering under holdeperiode</h2>
+          <h2 class="card-toggle">Finansiering</h2>
+          <div class="card-body">
+            <div class="form-grid">
+              <div class="field">
+                <label for="f-loan-pct">Belåning (%)</label>
+                <input type="number" id="f-loan-pct" value="80" step="1" min="0" max="100">
+              </div>
+              <div class="field computed">
+                <label>Lånebeløb</label>
+                <span id="f-loan-amount-calc" class="computed-val">&ndash;</span>
+              </div>
+              <div class="field">
+                <label for="f-rate">Rente (% p.a.)</label>
+                <input type="number" id="f-rate" value="4" step="0.01">
+              </div>
+              <div class="field computed">
+                <label>Beregnet mdl. rente</label>
+                <span id="f-payment-calc" class="computed-val">&ndash;</span>
+              </div>
+              <div class="field">
+                <label for="f-hold-cost">Eller indtast mdl. finansiering manuelt (kr.)</label>
+                <input type="number" id="f-hold-cost" placeholder="Valgfrit" step="100">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card collapsible">
+          <h2 class="card-toggle">Holdeperiode</h2>
           <div class="card-body">
             <div class="form-grid">
               <div class="field">
                 <label for="f-hold-months">Holdeperiode (måneder)</label>
                 <input type="number" id="f-hold-months" placeholder="6" step="1">
-              </div>
-              <div class="field">
-                <label for="f-hold-cost">Mdl. finansieringsomkostning (kr.)</label>
-                <input type="number" id="f-hold-cost" placeholder="5.000" step="100">
               </div>
               <div class="field">
                 <label for="f-hold-tax">Ejendomsskat (kr./md.)</label>
@@ -298,6 +459,10 @@
               <div class="field">
                 <label for="f-hold-insurance">Forsikring (kr./md.)</label>
                 <input type="number" id="f-hold-insurance" placeholder="600" step="100">
+              </div>
+              <div class="field">
+                <label for="f-hold-utilities">Forsyning (kr./md.)</label>
+                <input type="number" id="f-hold-utilities" placeholder="0" step="100">
               </div>
               <div class="field">
                 <label for="f-hold-other">Andre mdl. udgifter (kr.)</label>
@@ -310,8 +475,76 @@
         <div class="card collapsible">
           <h2 class="card-toggle">Renovering</h2>
           <div class="card-body">
+            <div class="reno-templates">
+              <span class="hint">Hurtig-tilføj:</span>
+              <button class="btn-template" data-desc="Køkken" data-cost="80000">Køkken</button>
+              <button class="btn-template" data-desc="Badeværelse" data-cost="60000">Bad</button>
+              <button class="btn-template" data-desc="Gulve" data-cost="35000">Gulve</button>
+              <button class="btn-template" data-desc="Maling" data-cost="20000">Maling</button>
+              <button class="btn-template" data-desc="Tag" data-cost="120000">Tag</button>
+              <button class="btn-template" data-desc="VVS" data-cost="40000">VVS</button>
+              <button class="btn-template" data-desc="El-installation" data-cost="35000">El</button>
+              <button class="btn-template" data-desc="Vinduer" data-cost="60000">Vinduer</button>
+            </div>
+            <div class="ai-estimator">
+              <button class="btn-ai-estimate" id="f-ai-toggle">Estimer med AI</button>
+              <div class="ai-estimator-form" id="f-ai-form" style="display:none">
+                <div class="form-grid">
+                  <div class="field">
+                    <label for="f-ai-room">Rumtype</label>
+                    <select id="f-ai-room">
+                      <option value="badeværelse">Badeværelse</option>
+                      <option value="køkken">Køkken</option>
+                      <option value="stue">Stue</option>
+                      <option value="soveværelse">Soveværelse</option>
+                      <option value="entré">Entré/gang</option>
+                      <option value="kælder">Kælder</option>
+                      <option value="tag">Tag</option>
+                      <option value="facade">Facade</option>
+                      <option value="hel-lejlighed">Hel lejlighed</option>
+                      <option value="andet">Andet</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label for="f-ai-sqm">Areal (m²)</label>
+                    <input type="number" id="f-ai-sqm" placeholder="8" step="0.5" min="1">
+                  </div>
+                  <div class="field">
+                    <label for="f-ai-quality">Kvalitetsniveau</label>
+                    <select id="f-ai-quality">
+                      <option value="budget">Budget</option>
+                      <option value="mellem" selected>Mellem</option>
+                      <option value="høj">Høj</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="field" style="margin-top:0.5rem">
+                  <label for="f-ai-desc">Beskriv renoveringen</label>
+                  <textarea id="f-ai-desc" rows="2" placeholder="Fx: Nyt badeværelse med bruseniche, gulvvarme, fliser på alle vægge..."></textarea>
+                </div>
+                <div class="ai-estimator-actions">
+                  <button class="btn-fetch" id="f-ai-submit">Beregn estimat</button>
+                  <button class="btn-reset ai-cancel-btn" id="f-ai-cancel">Annuller</button>
+                </div>
+                <div id="f-ai-status" class="url-status"></div>
+                <div id="f-ai-preview" class="ai-preview"></div>
+              </div>
+            </div>
             <div id="f-reno-list"></div>
             <button class="btn-add" id="f-add-reno">+ Tilføj post</button>
+          </div>
+        </div>
+
+        <!-- Budget vs Faktisk -->
+        <div class="card collapsible collapsed">
+          <h2 class="card-toggle">Budget vs. Faktisk</h2>
+          <div class="card-body">
+            <p class="hint">Spor faktiske omkostninger mod budgettet. Budgetposter hentes fra renoveringslisten.</p>
+            <div id="f-budget-actual-header" class="budget-actual-header" style="display:none">
+              <span>Post</span><span>Budget</span><span>Faktisk</span><span>Afvigelse</span>
+            </div>
+            <div id="f-budget-actual-list"></div>
+            <div id="f-budget-actual-summary"></div>
           </div>
         </div>
 
@@ -326,8 +559,79 @@
               <div class="field">
                 <label for="f-sale-costs">Salgsomkostninger (kr.)</label>
                 <input type="number" id="f-sale-costs" placeholder="60.000" step="1000">
+                <button class="btn-estimate" id="f-estimate-sale-costs">Estimer fra salgspris</button>
               </div>
             </div>
+          </div>
+        </div>
+
+        <!-- Skat -->
+        <div class="card collapsible collapsed">
+          <h2 class="card-toggle">Skatteberegning</h2>
+          <div class="card-body">
+            <p class="hint">Estimeret skat på flip-profit. Vælg beskatningsform.</p>
+            <div class="form-grid">
+              <div class="field">
+                <label for="f-tax-type">Beskatning</label>
+                <select id="f-tax-type">
+                  <option value="person">Personlig indkomst (~37-52%)</option>
+                  <option value="virksomhed">Virksomhedsordning (~22%)</option>
+                  <option value="selskab">Selskab / ApS (~22%)</option>
+                </select>
+              </div>
+              <div class="field computed">
+                <label>Estimeret skat</label>
+                <span id="f-tax-amount" class="computed-val">&ndash;</span>
+              </div>
+              <div class="field computed">
+                <label>Profit efter skat</label>
+                <span id="f-profit-after-tax" class="computed-val">&ndash;</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Scenarie -->
+        <div class="card collapsible collapsed">
+          <h2 class="card-toggle">Scenarieanalyse</h2>
+          <div class="card-body">
+            <p class="hint">Justér salgspris og renoveringsbudget med ét klik.</p>
+            <div class="scenario-btns">
+              <button class="btn-scenario" data-scenario="worst">Worst case</button>
+              <button class="btn-scenario active" data-scenario="base">Base case</button>
+              <button class="btn-scenario" data-scenario="best">Best case</button>
+            </div>
+            <div id="f-scenario-info" class="scenario-info"></div>
+          </div>
+        </div>
+
+        <!-- Due Diligence -->
+        <div class="card collapsible collapsed">
+          <h2 class="card-toggle">Due Diligence</h2>
+          <div class="card-body">
+            <div class="dd-section">
+              <h4>Juridisk</h4>
+              <label class="dd-item"><input type="checkbox" class="dd-check" data-section="f"> Tingbogsattest indhentet</label>
+              <label class="dd-item"><input type="checkbox" class="dd-check" data-section="f"> Servitutter og byrder tjekket</label>
+              <label class="dd-item"><input type="checkbox" class="dd-check" data-section="f"> BBR-meddelelse gennemgået</label>
+              <label class="dd-item"><input type="checkbox" class="dd-check" data-section="f"> Lokalplan/byggetilladelse tjekket</label>
+            </div>
+            <div class="dd-section">
+              <h4>Teknisk</h4>
+              <label class="dd-item"><input type="checkbox" class="dd-check" data-section="f"> Tilstandsrapport / bygningsgennemgang</label>
+              <label class="dd-item"><input type="checkbox" class="dd-check" data-section="f"> El-installation vurderet</label>
+              <label class="dd-item"><input type="checkbox" class="dd-check" data-section="f"> VVS og kloak tjekket</label>
+              <label class="dd-item"><input type="checkbox" class="dd-check" data-section="f"> Tag og facade vurderet</label>
+              <label class="dd-item"><input type="checkbox" class="dd-check" data-section="f"> Skadedyr/svamp undersøgt</label>
+            </div>
+            <div class="dd-section">
+              <h4>Økonomi</h4>
+              <label class="dd-item"><input type="checkbox" class="dd-check" data-section="f"> Finansiering på plads</label>
+              <label class="dd-item"><input type="checkbox" class="dd-check" data-section="f"> Håndværkertilbud indhentet</label>
+              <label class="dd-item"><input type="checkbox" class="dd-check" data-section="f"> Sammenlignelige salgspriser tjekket</label>
+              <label class="dd-item"><input type="checkbox" class="dd-check" data-section="f"> Exit-strategi defineret</label>
+            </div>
+            <div class="dd-progress" id="f-dd-progress">0 af 13 udført</div>
           </div>
         </div>
 
@@ -366,10 +670,158 @@
     </div>
   </section>
 
+  <!-- ======================== BRRRR ======================== -->
+  <section id="brrrr" class="tab-content">
+    <div class="calc-layout">
+      <div class="form-panel">
+
+        <div class="card">
+          <h2>BRRRR-beregner</h2>
+          <p class="hint">Buy, Rehab, Rent, Refinance, Repeat. Beregn om du kan genanvende din egenkapital efter renovering og udlejning.</p>
+        </div>
+
+        <div class="card collapsible">
+          <h2 class="card-toggle">Køb &amp; Renovering</h2>
+          <div class="card-body">
+            <div class="form-grid">
+              <div class="field">
+                <label for="b-name">Navn / Adresse</label>
+                <input type="text" id="b-name" placeholder="Fx Søndergade 5">
+              </div>
+              <div class="field">
+                <label for="b-purchase">Købspris (kr.)</label>
+                <input type="number" id="b-purchase" placeholder="1.200.000" step="1000">
+              </div>
+              <div class="field">
+                <label for="b-closing">Købsomkostninger (kr.)</label>
+                <input type="number" id="b-closing" placeholder="40.000" step="1000">
+                <button type="button" class="btn-estimate" id="b-auto-tinglysning">+ Tinglysningsafgift</button>
+              </div>
+              <div class="field">
+                <label for="b-reno-total">Renoveringsbudget (kr.)</label>
+                <input type="number" id="b-reno-total" placeholder="300.000" step="1000">
+              </div>
+            </div>
+            <div class="field computed" style="margin-top:0.5rem">
+              <label>Total investering</label>
+              <span id="b-total-investment" class="computed-val">&ndash;</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card collapsible">
+          <h2 class="card-toggle">Første lån (køb)</h2>
+          <div class="card-body">
+            <div class="form-grid">
+              <div class="field">
+                <label for="b-init-ltv">Belåning (%)</label>
+                <input type="number" id="b-init-ltv" value="80" step="1" min="0" max="100">
+              </div>
+              <div class="field">
+                <label for="b-init-rate">Rente (% p.a.)</label>
+                <input type="number" id="b-init-rate" value="4" step="0.01">
+              </div>
+              <div class="field computed">
+                <label>Egenkapital krævet (køb + reno)</label>
+                <span id="b-equity-needed" class="computed-val">&ndash;</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card collapsible">
+          <h2 class="card-toggle">Refinansiering (ARV)</h2>
+          <div class="card-body">
+            <div class="form-grid">
+              <div class="field">
+                <label for="b-arv">Vurderet værdi efter renovering (kr.)</label>
+                <input type="number" id="b-arv" placeholder="2.000.000" step="1000">
+              </div>
+              <div class="field">
+                <label for="b-refi-ltv">Refinansiering LTV (%)</label>
+                <input type="number" id="b-refi-ltv" value="80" step="1" min="0" max="100">
+              </div>
+              <div class="field">
+                <label for="b-refi-rate">Rente (% p.a.)</label>
+                <input type="number" id="b-refi-rate" value="4" step="0.01">
+              </div>
+              <div class="field">
+                <label for="b-refi-term">Løbetid (år)</label>
+                <input type="number" id="b-refi-term" value="30" step="1">
+              </div>
+              <div class="field checkbox-field">
+                <label><input type="checkbox" id="b-refi-io"> Afdragsfrit</label>
+              </div>
+              <div class="field computed">
+                <label>Nyt lån</label>
+                <span id="b-new-loan" class="computed-val">&ndash;</span>
+              </div>
+              <div class="field computed">
+                <label>Mdl. ydelse (nyt lån)</label>
+                <span id="b-refi-payment" class="computed-val">&ndash;</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card collapsible">
+          <h2 class="card-toggle">Udlejning efter renovering</h2>
+          <div class="card-body">
+            <div class="form-grid">
+              <div class="field">
+                <label for="b-monthly-rent">Mdl. husleje (kr.)</label>
+                <input type="number" id="b-monthly-rent" placeholder="10.000" step="100">
+              </div>
+              <div class="field">
+                <label for="b-vacancy">Tomgang (%)</label>
+                <input type="number" id="b-vacancy" value="5" step="0.5" min="0" max="100">
+              </div>
+              <div class="field">
+                <label for="b-annual-opex">Årlige driftsudgifter (kr.)</label>
+                <input type="number" id="b-annual-opex" placeholder="40.000" step="1000">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button class="btn-reset" id="b-reset">Nulstil</button>
+        </div>
+
+      </div>
+
+      <div class="results-panel">
+        <div class="results-sticky">
+          <div class="card results-card">
+            <div class="results-header">
+              <h2>BRRRR-resultat</h2>
+            </div>
+            <div id="b-results">
+              <p class="placeholder-text">Udfyld felterne for at se BRRRR-beregning.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- ======================== MINE EJENDOMME ======================== -->
   <section id="saved" class="tab-content">
     <div class="saved-container">
       <div id="portfolio-dashboard"></div>
+      <div class="backup-actions">
+        <button class="btn-export" id="btn-backup">Eksportér backup</button>
+        <label class="btn-import-label" for="backup-file-input">
+          <span class="btn-import">Importér backup</span>
+        </label>
+        <input type="file" id="backup-file-input" accept=".json" style="display:none">
+      </div>
+      <div id="import-choice" class="import-choice" style="display:none">
+        <p>Hvad skal der ske med eksisterende data?</p>
+        <button class="btn-save" id="import-merge">Flet (behold + tilføj nye)</button>
+        <button class="btn-reset" id="import-replace">Erstat alt</button>
+        <button class="btn-reset" id="import-cancel">Annuller</button>
+      </div>
       <div class="saved-header">
         <h2>Gemte ejendomme</h2>
         <button class="btn-compare" id="btn-compare" style="display:none">Sammenlign valgte</button>

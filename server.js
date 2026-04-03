@@ -25,6 +25,11 @@ app.post('/api/fetch-property', async (req, res) => {
   }
 });
 
+app.post('/api/estimate-renovation', async (req, res) => {
+  const handler = require('./api/estimate-renovation');
+  await handler(req, res);
+});
+
 app.listen(PORT, () => {
   console.log(`\n  Go Bolig server kører på:\n  http://localhost:${PORT}\n`);
 });
