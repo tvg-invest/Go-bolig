@@ -810,15 +810,20 @@ function calcFlip() {
   // Tax estimation
   if (profit > 0) {
     const taxType = document.getElementById('f-tax-type')?.value || 'person';
-    let taxRate, taxLabel;
+    let taxAmount, taxLabel;
     if (taxType === 'person') {
-      taxRate = profit > 600000 ? 0.52 : 0.37;
-      taxLabel = profit > 600000 ? '52%' : '37%';
+      const BRACKET = 600000;
+      if (profit > BRACKET) {
+        taxAmount = Math.round(BRACKET * 0.37 + (profit - BRACKET) * 0.52);
+        taxLabel = '37%/52%';
+      } else {
+        taxAmount = Math.round(profit * 0.37);
+        taxLabel = '37%';
+      }
     } else {
-      taxRate = 0.22;
+      taxAmount = Math.round(profit * 0.22);
       taxLabel = '22%';
     }
-    const taxAmount = Math.round(profit * taxRate);
     const afterTax = profit - taxAmount;
     document.getElementById('f-tax-amount').textContent = fmt(taxAmount) + ' kr. (' + taxLabel + ')';
     document.getElementById('f-profit-after-tax').textContent = fmt(afterTax) + ' kr.';
@@ -1333,6 +1338,8 @@ document.getElementById('r-reset').addEventListener('click', () => {
   document.getElementById('r-notes').value = '';
   document.getElementById('r-units-list').innerHTML = '';
   document.getElementById('r-reno-list').innerHTML = '';
+  document.getElementById('r-loan-compare-inputs').innerHTML = '';
+  document.getElementById('r-loan-compare-results').innerHTML = '';
   document.getElementById('r-property-image').innerHTML = '';
   // Restore defaults
   document.getElementById('r-loan-pct').value = 80;
@@ -1350,6 +1357,8 @@ document.getElementById('r-reset').addEventListener('click', () => {
   localStorage.removeItem('gobolig_draft_rental');
   window._editingPropertyId = null;
   calcRental();
+  addLoanCompareRow('Fastforrentet 30 år', 4, 30, false);
+  addLoanCompareRow('Flexlån F5', 3, 30, false);
   showToast('Felter nulstillet.', 'info');
 });
 
@@ -1457,6 +1466,7 @@ window.loadProperty = function(id) {
     document.getElementById('flip').classList.add('active');
     loadFlipData(p);
   }
+  window._editingPropertyId = null;
   showToast(`${p.name} indlæst.`, 'success');
 };
 
@@ -1703,7 +1713,7 @@ function computeFlipMetrics(p) {
     salePrice: p.salePrice || 0,
     profit,
     roi,
-    annualizedRoi: (p.holdMonths > 0 && totalInv > 0) ? (Math.pow(1 + profit / totalInv, 12 / p.holdMonths) - 1) * 100 : 0,
+    annualizedRoi: (() => { if (p.holdMonths > 0 && totalInv > 0) { const r = (Math.pow(1 + profit / totalInv, 12 / p.holdMonths) - 1) * 100; return isFinite(r) ? r : 0; } return 0; })(),
     profitMargin,
     profitPerSqm,
   };
