@@ -113,6 +113,7 @@
         <div class="card collapsible">
           <h2 class="card-toggle">Finansiering</h2>
           <div class="card-body">
+            <h4 class="finance-sub">Realkredit</h4>
             <div class="form-grid">
               <div class="field">
                 <label for="r-loan-pct">Belåning (%)</label>
@@ -137,11 +138,40 @@
                 </label>
               </div>
               <div class="field computed">
-                <label>Beregnet mdl. ydelse</label>
+                <label>Mdl. ydelse (realkredit)</label>
                 <span id="r-payment-calc" class="computed-val">&ndash;</span>
               </div>
+            </div>
+            <h4 class="finance-sub" style="margin-top:1rem">Banklån <span class="hint">(valgfrit)</span></h4>
+            <div class="form-grid">
               <div class="field">
-                <label for="r-payment-override">Eller indtast mdl. ydelse manuelt (kr.)</label>
+                <label for="r-bank-pct">Belåning (%)</label>
+                <input type="number" id="r-bank-pct" value="0" step="1" min="0" max="100">
+              </div>
+              <div class="field computed">
+                <label>Banklån beløb</label>
+                <span id="r-bank-amount-calc" class="computed-val">&ndash;</span>
+              </div>
+              <div class="field">
+                <label for="r-bank-rate">Rente (% p.a.)</label>
+                <input type="number" id="r-bank-rate" value="6" step="0.01">
+              </div>
+              <div class="field">
+                <label for="r-bank-term">Løbetid (år)</label>
+                <input type="number" id="r-bank-term" value="10" step="1">
+              </div>
+              <div class="field computed">
+                <label>Mdl. ydelse (bank)</label>
+                <span id="r-bank-payment-calc" class="computed-val">&ndash;</span>
+              </div>
+            </div>
+            <div class="form-grid" style="margin-top:0.5rem">
+              <div class="field computed">
+                <label><strong>Samlet mdl. ydelse</strong></label>
+                <span id="r-total-payment-calc" class="computed-val">&ndash;</span>
+              </div>
+              <div class="field">
+                <label for="r-payment-override">Eller indtast samlet mdl. ydelse manuelt (kr.)</label>
                 <input type="number" id="r-payment-override" placeholder="Valgfrit" step="100">
               </div>
             </div>
@@ -162,6 +192,7 @@
         <div class="card collapsible">
           <h2 class="card-toggle">Årlige driftsudgifter</h2>
           <div class="card-body">
+            <button type="button" class="btn-estimate" id="r-auto-expenses" style="margin-bottom:0.75rem">Estimer fra købspris</button>
             <div class="form-grid">
               <div class="field">
                 <label for="r-tax">Ejendomsskat (kr./år)</label>
@@ -195,6 +226,36 @@
           </div>
         </div>
 
+        <!-- Skatteberegning -->
+        <div class="card collapsible collapsed">
+          <h2 class="card-toggle">Skatteberegning</h2>
+          <div class="card-body">
+            <p class="hint">Estimeret skat på lejeindtægt. Rentefradrag beregnes automatisk fra lånet.</p>
+            <div class="form-grid">
+              <div class="field">
+                <label for="r-tax-type">Beskatning</label>
+                <select id="r-tax-type">
+                  <option value="person">Personlig indkomst (~37-52%)</option>
+                  <option value="virksomhed">Virksomhedsordning (~22%)</option>
+                  <option value="selskab">Selskab / ApS (~22%)</option>
+                </select>
+              </div>
+              <div class="field computed">
+                <label>Skattepligtig indkomst</label>
+                <span id="r-taxable-income" class="computed-val">&ndash;</span>
+              </div>
+              <div class="field computed">
+                <label>Estimeret årlig skat</label>
+                <span id="r-tax-amount" class="computed-val">&ndash;</span>
+              </div>
+              <div class="field computed">
+                <label>Cash flow efter skat (mdl.)</label>
+                <span id="r-cf-after-tax" class="computed-val">&ndash;</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Projektion -->
         <div class="card collapsible collapsed">
           <h2 class="card-toggle">10-års projektion</h2>
@@ -212,6 +273,44 @@
               <div class="field">
                 <label for="r-expense-growth">Årlig udgiftsstigning (%)</label>
                 <input type="number" id="r-expense-growth" value="2" step="0.5" min="0">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Exit-strategi -->
+        <div class="card collapsible collapsed">
+          <h2 class="card-toggle">Exit-strategi (salg)</h2>
+          <div class="card-body">
+            <p class="hint">Beregn total afkast hvis ejendommen sælges efter en årrække.</p>
+            <div class="form-grid">
+              <div class="field">
+                <label for="r-exit-years">Sælg efter (år)</label>
+                <input type="number" id="r-exit-years" value="5" step="1" min="1" max="30">
+              </div>
+              <div class="field">
+                <label for="r-exit-costs-pct">Salgsomkostninger (%)</label>
+                <input type="number" id="r-exit-costs-pct" value="3" step="0.5" min="0">
+              </div>
+              <div class="field computed">
+                <label>Forventet salgspris</label>
+                <span id="r-exit-sale-price" class="computed-val">&ndash;</span>
+              </div>
+              <div class="field computed">
+                <label>Akkumuleret cash flow</label>
+                <span id="r-exit-cum-cf" class="computed-val">&ndash;</span>
+              </div>
+              <div class="field computed">
+                <label>Egenkapital ved salg</label>
+                <span id="r-exit-equity" class="computed-val">&ndash;</span>
+              </div>
+              <div class="field computed">
+                <label>Total profit</label>
+                <span id="r-exit-total-profit" class="computed-val">&ndash;</span>
+              </div>
+              <div class="field computed">
+                <label>Annualiseret afkast</label>
+                <span id="r-exit-annualized" class="computed-val">&ndash;</span>
               </div>
             </div>
           </div>
@@ -346,6 +445,8 @@
             <div class="results-header">
               <h2>Likviditetsbudget</h2>
               <div class="results-actions">
+                <button class="btn-export btn-share" id="r-export-share" title="Kopiér resumé til udklipsholder">Del</button>
+                <button class="btn-export btn-gsheets" id="r-export-gsheets" title="Eksportér til Google Sheets">Sheets</button>
                 <button class="btn-export btn-excel" id="r-export-excel" title="Download Excel">Excel</button>
                 <button class="btn-export" id="r-export-pdf" title="Download PDF">PDF</button>
                 <button class="btn-print" onclick="window.print()" title="Print rapport">Print</button>
@@ -656,6 +757,8 @@
             <div class="results-header">
               <h2>Flip-resultat</h2>
               <div class="results-actions">
+                <button class="btn-export btn-share" id="f-export-share" title="Kopiér resumé til udklipsholder">Del</button>
+                <button class="btn-export btn-gsheets" id="f-export-gsheets" title="Eksportér til Google Sheets">Sheets</button>
                 <button class="btn-export btn-excel" id="f-export-excel" title="Download Excel">Excel</button>
                 <button class="btn-export" id="f-export-pdf" title="Download PDF">PDF</button>
                 <button class="btn-print" onclick="window.print()" title="Print rapport">Print</button>
@@ -784,7 +887,15 @@
           </div>
         </div>
 
+        <div class="card collapsible collapsed">
+          <h2 class="card-toggle">Noter</h2>
+          <div class="card-body">
+            <textarea id="b-notes" class="notes-field" rows="4" placeholder="Observationer, kontakter, strategi..."></textarea>
+          </div>
+        </div>
+
         <div class="form-actions">
+          <button class="btn-save" id="b-save">Gem BRRRR</button>
           <button class="btn-reset" id="b-reset">Nulstil</button>
         </div>
 
@@ -795,6 +906,12 @@
           <div class="card results-card">
             <div class="results-header">
               <h2>BRRRR-resultat</h2>
+              <div class="results-actions">
+                <button class="btn-export btn-share" id="b-export-share" title="Kopiér resumé">Del</button>
+                <button class="btn-export btn-gsheets" id="b-export-gsheets" title="Eksportér til Google Sheets">Sheets</button>
+                <button class="btn-export btn-excel" id="b-export-excel" title="Download Excel">Excel</button>
+                <button class="btn-export" id="b-export-pdf" title="Download PDF">PDF</button>
+              </div>
             </div>
             <div id="b-results">
               <p class="placeholder-text">Udfyld felterne for at se BRRRR-beregning.</p>
@@ -810,6 +927,7 @@
     <div class="saved-container">
       <div id="portfolio-dashboard"></div>
       <div class="backup-actions">
+        <button class="btn-export btn-gsheets" id="btn-portfolio-gsheets">Alle til Google Sheets</button>
         <button class="btn-export" id="btn-backup">Eksportér backup</button>
         <label class="btn-import-label" for="backup-file-input">
           <span class="btn-import">Importér backup</span>
@@ -821,6 +939,28 @@
         <button class="btn-save" id="import-merge">Flet (behold + tilføj nye)</button>
         <button class="btn-reset" id="import-replace">Erstat alt</button>
         <button class="btn-reset" id="import-cancel">Annuller</button>
+      </div>
+      <div class="saved-sort-bar">
+        <input type="text" id="saved-search" class="saved-search" placeholder="Søg i ejendomme...">
+        <select id="saved-status-filter" class="saved-sort">
+          <option value="">Alle status</option>
+          <option value="analyserer">Analyserer</option>
+          <option value="budt">Budt</option>
+          <option value="kobt">Købt</option>
+          <option value="renoveres">Renoveres</option>
+          <option value="udlejet">Udlejet</option>
+          <option value="solgt">Solgt</option>
+        </select>
+        <select id="saved-sort" class="saved-sort">
+          <option value="date-desc">Nyeste først</option>
+          <option value="date-asc">Ældste først</option>
+          <option value="name-asc">Navn A-Å</option>
+          <option value="name-desc">Navn Å-A</option>
+          <option value="price-desc">Højeste pris</option>
+          <option value="price-asc">Laveste pris</option>
+          <option value="cf-desc">Bedste cash flow</option>
+          <option value="roi-desc">Bedste ROI/afkast</option>
+        </select>
       </div>
       <div class="saved-header">
         <h2>Gemte ejendomme</h2>
